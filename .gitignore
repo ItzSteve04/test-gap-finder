@@ -216,3 +216,55 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# =========================
+# Test Gap Finder additions
+# =========================
+
+# Node / Angular
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Angular build output
+frontend/dist/
+frontend/.angular/
+frontend/.cache/
+
+# Frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Backend environment files
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Root environment files
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor local settings
+.vscode/
+.idea/
+
+# Temporary analysis output
+tmp/
+temp/
+*.tmp
+
+# Local repository clones used during analysis
+workspace/
+workspaces/
+cloned_repos/
+
+# Local test output
+test-results/
