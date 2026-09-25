@@ -14,7 +14,7 @@ app = FastAPI(title="Test Gap Finder API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+      allow_origins=["http://localhost:4200"],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
