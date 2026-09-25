@@ -1,6 +1,7 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from analyzer.code_analysis.repo_scanner import scan_repository
@@ -9,6 +10,13 @@ from analyzer.test_generation.test_generator import generate_tests, generate_tes
 from analyzer.runner.test_runner import run_tests
 
 app = FastAPI(title="Test Gap Finder API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 class AnalyzeRequest(BaseModel):
