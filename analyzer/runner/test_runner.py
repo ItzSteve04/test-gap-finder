@@ -1,8 +1,8 @@
-"""Runs a generated pytest module against the sample repository.
+"""Runs a generated pytest module against a repository.
 
-Writes the module text to a temporary file inside sample_repo/tests/,
-executes pytest as a subprocess, captures the output, then removes the
-temporary file regardless of outcome.
+Writes the module text to a temporary file inside the repository's tests
+directory, executes pytest as a subprocess, captures the output, then removes
+the temporary file regardless of outcome.
 
 Coverage is measured in two passes:
   1. Original tests only  → coverage_before
@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 
 
-def run_tests(module_text: str, repo_path: str) -> dict:
+def run_tests(module_text: str, repo_path: str,
+              test_files: list[str] | None = None,
+              source_dirs: list[str] | None = None) -> dict:
     """Write *module_text* to a temp file, run pytest with coverage, return results.
 
     Coverage is measured twice:
@@ -23,8 +25,14 @@ def run_tests(module_text: str, repo_path: str) -> dict:
       - *after*:  original suite + generated temp file
 
     Args:
-        module_text: Full pytest module source (from ``generate_test_module()``).
-        repo_path:   Root of the repository to test (e.g. ``"sample_repo"``).
+        module_text:  Full pytest module source (from ``generate_test_module()``).
+        repo_path:    Root of the repository (used to locate a ``tests/``
+                      directory for the temporary file).
+        test_files:   Explicit list of test-file paths to use.  When *None*,
+                      falls back to ``<repo_path>/tests/test_cart.py`` for
+                      backwards compatibility.
+        source_dirs:  Directories passed to ``--cov``.  When *None*, falls
+                      back to ``<repo_path>/src`` for backwards compatibility.
 
     Returns:
         A dict with::
@@ -42,19 +50,31 @@ def run_tests(module_text: str, repo_path: str) -> dict:
         The temporary test file is always removed before returning.
     """
     repo = Path(repo_path)
-    tests_dir = repo / "tests"
-    original_test = str(tests_dir / "test_cart.py")
+
+    # Resolve test files
+    if test_files is not None:
+        original_tests = [str(p) for p in test_files]
+    else:
+        original_tests = [str(repo / "tests" / "test_cart.py")]
+
+    # Resolve coverage sources
+    if source_dirs is not None:
+        cov_sources = [str(p) for p in source_dirs]
+    else:
+        cov_sources = [str(repo / "src")]
+
+    # Find (or create) a writable tests directory for the temp file
+    tests_dir = _find_tests_dir(repo, original_tests)
     tmp_path = tests_dir / "_generated_tests_tmp.py"
-    cov_source = str(repo / "src")
 
     # Pass 1 — original tests only
-    before_result = _pytest_with_cov([original_test], cov_source)
+    before_result = _pytest_with_cov(original_tests, cov_sources)
     coverage_before = _parse_coverage(before_result.stdout)
 
     # Pass 2 — original + generated tests
     try:
         tmp_path.write_text(module_text, encoding="utf-8")
-        after_result = _pytest_with_cov([original_test, str(tmp_path)], cov_source)
+        after_result = _pytest_with_cov(original_tests + [str(tmp_path)], cov_sources)
         coverage_after = _parse_coverage(after_result.stdout)
     finally:
         if tmp_path.exists():
@@ -78,14 +98,33 @@ def run_tests(module_text: str, repo_path: str) -> dict:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _pytest_with_cov(test_paths: list[str], cov_source: str):
-    """Run pytest with coverage over *cov_source* for the given *test_paths*."""
+def _find_tests_dir(repo: Path, test_file_paths: list[str]) -> Path:
+    """Return a directory suitable for writing the temporary test file.
+
+    Prefers the parent directory of the first discovered test file so the
+    generated module lives alongside the real tests.  Falls back to
+    ``<repo>/tests``, creating it if necessary.
+    """
+    if test_file_paths:
+        candidate = Path(test_file_paths[0]).parent
+        if candidate.is_dir():
+            return candidate
+    fallback = repo / "tests"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def _pytest_with_cov(test_paths: list[str], cov_sources: list[str]):
+    """Run pytest with coverage over *cov_sources* for the given *test_paths*."""
+    cov_args = []
+    for src in cov_sources:
+        cov_args += [f"--cov={src}"]
     return subprocess.run(
         [
             sys.executable, "-m", "pytest",
             *test_paths,
             "-v", "--tb=short",
-            f"--cov={cov_source}",
+            *cov_args,
             "--cov-report=term-missing",
         ],
         capture_output=True,

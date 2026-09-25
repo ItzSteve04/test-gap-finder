@@ -7,6 +7,41 @@ IGNORED_DIRS = {
 }
 
 
+def _is_test_file(filename: str) -> bool:
+    """Return True if *filename* matches pytest test-file conventions."""
+    return filename.startswith("test_") or filename.endswith("_test.py")
+
+
+def discover_files(repo_path: str) -> dict:
+    """Recursively discover Python source and test files in *repo_path*.
+
+    Skips directories listed in :data:`IGNORED_DIRS`.
+
+    Args:
+        repo_path: Absolute or relative path to the repository root.
+
+    Returns:
+        A dict with:
+            - ``source_files`` (list[str]): absolute paths to non-test ``.py`` files
+            - ``test_files``   (list[str]): absolute paths to pytest test files
+    """
+    source_files: list[str] = []
+    test_files: list[str] = []
+
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS]
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+            full_path = os.path.join(dirpath, filename)
+            if _is_test_file(filename):
+                test_files.append(full_path)
+            else:
+                source_files.append(full_path)
+
+    return {"source_files": source_files, "test_files": test_files}
+
+
 def scan_repository(repo_path: str) -> dict:
     """Scan a local repository and return basic metrics.
 
@@ -35,7 +70,7 @@ def scan_repository(repo_path: str) -> dict:
         for filename in filenames:
             if filename.endswith(".py"):
                 python_files += 1
-                if filename.startswith("test_") or filename.endswith("_test.py"):
+                if _is_test_file(filename):
                     test_files += 1
 
     return {
