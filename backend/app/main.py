@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 from analyzer.code_analysis.repo_scanner import scan_repository
 from analyzer.gap_detection.gap_detector import detect_gaps
-from analyzer.test_generation.test_generator import generate_tests
+from analyzer.test_generation.test_generator import generate_tests, generate_test_module
+from analyzer.runner.test_runner import run_tests
 
 app = FastAPI(title="Test Gap Finder API")
 
@@ -29,6 +30,8 @@ def analyze(request: AnalyzeRequest):
     gaps = detect_gaps(source_file, test_file)
 
     generated_tests = generate_tests(gaps)
+    module_text = generate_test_module(gaps)
+    test_results = run_tests(module_text, repo)
 
     return {
         "repository": repo,
@@ -38,4 +41,5 @@ def analyze(request: AnalyzeRequest):
         "has_tests_folder": scan["has_tests_folder"],
         "gaps": gaps,
         "generated_tests": generated_tests,
+        "test_results": test_results,
     }
