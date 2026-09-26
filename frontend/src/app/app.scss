@@ -1,3 +1,21 @@
+/* ─── App shell (sidenav container) ─────────────────────────── */
+
+.shell {
+  height: 100vh;
+  width: 100%;
+}
+
+/* ─── History drawer ─────────────────────────────────────────── */
+
+.history-drawer {
+  width: 280px;
+  background: var(--mat-sys-surface-container-low) !important;
+  border-right: 1px solid var(--mat-sys-outline-variant);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ─── Toolbar ─────────────────────────────────────────────────── */
 
 .app-toolbar {
@@ -75,13 +93,15 @@
   white-space: nowrap;
   flex-shrink: 0;
   min-width: 130px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
-/* Material wraps button content in .mdc-button__label — make it a flex row */
-.analyze-btn .mdc-button__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+/* Reach into Material's shadow DOM to align the icon with the label text */
+::ng-deep .analyze-btn .mat-icon {
+  vertical-align: middle;
+  margin-right: 0.4rem;
 }
 
 /* ─── Coverage hero ──────────────────────────────────────────── */
@@ -308,4 +328,21 @@
   .stat-card-repo {
     grid-column: span 1;
   }
+
+  /* Sidenav switches to overlay on mobile */
+  .history-drawer {
+    width: 85vw;
+    max-width: 320px;
+  }
+}
+
+/* ─── Copyright footer ───────────────────────────────────────── */
+
+.app-footer {
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  text-align: center;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.78rem;
+  color: var(--mat-sys-on-surface-variant);
+  background: var(--mat-sys-surface-container-low);
 }

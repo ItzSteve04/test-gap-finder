@@ -1,0 +1,314 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── Header ────────────────────────────────────────────────── */
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0.75rem 0.5rem 1rem;
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.new-btn {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* ─── Search ────────────────────────────────────────────────── */
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.75rem 0.5rem;
+  background: var(--mat-sys-surface-container-highest);
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  flex-shrink: 0;
+}
+
+.search-icon {
+  font-size: 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--mat-sys-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface);
+  min-width: 0;
+
+  &::placeholder {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+/* ─── Scrollable list body ───────────────────────────────────── */
+
+.bucket-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0.75rem 1rem 0.2rem;
+  flex-shrink: 0;
+}
+
+/* make the area below search scroll */
+app-history-sidebar > .bucket-label:first-of-type,
+app-history-sidebar > .history-row:first-of-type,
+app-history-sidebar > .empty-state,
+app-history-sidebar > .skeleton-list {
+  /* nothing — let :host flex handle scroll via overflow below */
+}
+
+:host > .bucket-label,
+:host > .history-row,
+:host > .empty-state,
+:host > .skeleton-list {
+  overflow-y: auto;
+}
+
+/* wrap bucket labels + rows in a scrollable container */
+:host {
+  overflow-y: auto;
+
+  .bucket-label,
+  .history-row {
+    overflow-y: visible;
+  }
+}
+
+/* ─── History row ────────────────────────────────────────────── */
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.75rem;
+  margin: 0 0.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  min-width: 0;
+  position: relative;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-highest);
+
+    .kebab-btn {
+      opacity: 1;
+    }
+  }
+
+  &.selected {
+    background: var(--mat-sys-secondary-container);
+
+    .row-title {
+      color: var(--mat-sys-on-secondary-container);
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: var(--mat-sys-secondary-container);
+    }
+  }
+
+  &.failed .row-title {
+    color: var(--mat-sys-error);
+  }
+
+  &.running {
+    opacity: 0.7;
+    cursor: default;
+  }
+}
+
+/* ─── Row internals ──────────────────────────────────────────── */
+
+.row-status {
+  width: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row-spinner {
+  /* override mat-spinner default size */
+}
+
+.status-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+.failed-icon {
+  color: var(--mat-sys-error);
+}
+
+.row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.row-title {
+  font-size: 0.87rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--mat-sys-on-surface);
+  line-height: 1.3;
+}
+
+.row-sub {
+  font-size: 0.72rem;
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.coverage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: 0.2rem;
+}
+
+.cov-before {
+  color: var(--mat-sys-error);
+  font-weight: 600;
+}
+
+.cov-after {
+  color: var(--mat-sys-primary);
+  font-weight: 600;
+}
+
+.cov-arrow {
+  font-size: 0.7rem !important;
+  width: 0.7rem !important;
+  height: 0.7rem !important;
+  color: var(--mat-sys-outline);
+}
+
+.failed-label {
+  color: var(--mat-sys-error);
+  font-weight: 600;
+}
+
+/* ─── Kebab button ───────────────────────────────────────────── */
+
+.kebab-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  color: var(--mat-sys-on-surface-variant);
+
+  /* Always visible on touch devices */
+  @media (hover: none) {
+    opacity: 1;
+  }
+
+  mat-icon {
+    font-size: 1.1rem;
+  }
+}
+
+/* ─── Rename input ───────────────────────────────────────────── */
+
+.rename-input {
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid var(--mat-sys-primary);
+  background: transparent;
+  outline: none;
+  font-size: 0.87rem;
+  color: var(--mat-sys-on-surface);
+  padding: 0.1rem 0;
+  min-width: 0;
+}
+
+/* ─── Empty state ────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
+  flex: 1;
+
+  p {
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+.empty-icon {
+  font-size: 2rem;
+  width: 2rem;
+  height: 2rem;
+  opacity: 0.4;
+}
+
+/* ─── Skeleton ───────────────────────────────────────────────── */
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.skeleton-row {
+  height: 40px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container-highest);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+
+  &.short {
+    height: 32px;
+    width: 70%;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
