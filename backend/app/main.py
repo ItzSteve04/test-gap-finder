@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,6 +22,8 @@ from analyzer.test_generation.plan_driven_generator import (
 )
 
 from analyzer.test_generation.test_validator import validate_generated_tests
+
+from analyzer.code_analysis.repository_loader import resolve_repository
 
 # Legacy generator kept available for fallback (not used by the main flow).
 from analyzer.test_generation.test_generator import generate_tests_legacy  # noqa: F401
@@ -49,106 +52,161 @@ def health():
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-@app.post("/analyze")
-def analyze(request: AnalyzeRequest):
-    repo = request.repository_url
-
-    # Resolve relative paths against the project root so users can type short
-    # names like "sample_repo" regardless of the server's working directory.
-    repo_path = Path(repo)
-    if not repo_path.is_absolute():
-        repo_path = (_PROJECT_ROOT / repo_path).resolve()
-
-    repo = str(repo_path)
-
+def _analyze_repository(repo: str, *, execution_allowed: bool, source_type: str):
     if not os.path.isdir(repo):
         raise HTTPException(status_code=400, detail=f"Repository path not found: {repo}")
 
     # Structural metrics (counts only)
     scan = scan_repository(repo)
-
-    # Discover source and test files
     discovered = discover_files(repo)
-    source_files: list[str] = discovered["source_files"]
-    test_files: list[str] = discovered["test_files"]
 
-    # Unique source directories (for coverage measurement)
-    source_dirs = list({str(Path(f).parent) for f in source_files})
+    source_files = discovered["source_files"]
+    test_files = discovered["test_files"]
 
-    # -----------------------------------------------------------------------
-    # Main pipeline: gaps → test_plans → generated_tests → test runner
-    # -----------------------------------------------------------------------
+    source_dirs = list({
+        str(Path(file_path).parent)
+        for file_path in source_files
+    })
 
-    # Step 1 — generic repository-level gap records (used in the API response)
     gap_records = analyze_repository_gaps(repo)
 
-    # Step 2 — structured test plans (one entry per gap function)
     test_plans = generate_test_plan(repo)
 
-    # Step 3 — plan-driven test generation
-    generated_tests, unsupported_plans = generate_tests_from_plans(test_plans)
-
-    # Step 4 — build the generated pytest module
-    module_text = generate_test_module_from_plans(test_plans, source_files)
-
-    # Step 5 — validate generated tests before execution
-    validation = validate_generated_tests(
-        generated_tests=generated_tests,
-        module_text=module_text,
-        repo_path=repo,
-        test_files=test_files if test_files else None,
+    generated_tests, unsupported_plans = generate_tests_from_plans(
+        test_plans
     )
 
-    # Only validated tests are allowed to reach the runner.
-    validated_module_text = validation["validated_module_text"]
-
-    # Always measure the baseline coverage from the existing test suite.
-    coverage_before = measure_coverage_before(
-        repo,
-        test_files=test_files if test_files else None,
-        source_dirs=source_dirs if source_dirs else None,
+    module_text = generate_test_module_from_plans(
+        test_plans,
+        source_files,
     )
 
-    if validation["valid_tests"]:
-        test_results = run_tests(
-            validated_module_text,
+    # ---------------------------------------------------------------
+    # Trusted local repository
+    # ---------------------------------------------------------------
+
+    if execution_allowed:
+        validation = validate_generated_tests(
+            generated_tests,
+            module_text,
             repo,
             test_files=test_files if test_files else None,
-            source_dirs=source_dirs if source_dirs else None,
         )
+
+        # Only validated tests are allowed to reach the runner.
+        validated_module_text = validation["validated_module_text"]
+
+        if validation["valid_tests"]:
+            test_results = run_tests(
+                validated_module_text,
+                repo,
+                test_files=test_files if test_files else None,
+                source_dirs=source_dirs if source_dirs else None,
+            )
+        else:
+            test_results = {
+                "passed": 0,
+                "failed": 0,
+                "exit_code": 1,
+                "coverage_before": 0.0,
+                "coverage_after": 0.0,
+                "coverage_details": {
+                    "before": [],
+                    "after": [],
+                },
+                "potential_bug_findings": [],
+                "stdout": "",
+                "stderr": "No generated tests passed validation.",
+            }
+
+        validation_results = validation["validation_results"]
+
+        validation_summary = {
+            "valid": len(validation["valid_tests"]),
+            "invalid": len(validation["invalid_tests"]),
+            "collection_success": validation["collection"]["success"],
+        }
+
+        execution_mode = "trusted_local"
+
+    # ---------------------------------------------------------------
+    # Untrusted cloned repository
+    #
+    # Do NOT import/collect/run its code yet.
+    # ---------------------------------------------------------------
+
     else:
+        validation_results = []
+
+        validation_summary = {
+            "valid": 0,
+            "invalid": 0,
+            "collection_success": False,
+            "skipped": True,
+            "reason": (
+                "Generated tests were not collected or executed because "
+                "the repository was cloned from an external GitHub URL."
+            ),
+        }
+
         test_results = {
             "passed": 0,
             "failed": 0,
-            "exit_code": 1,
-            "coverage_before": coverage_before,
-            "coverage_after": coverage_before,
+            "exit_code": 0,
+            "coverage_before": 0.0,
+            "coverage_after": 0.0,
             "coverage_details": {
                 "before": [],
                 "after": [],
             },
             "potential_bug_findings": [],
             "stdout": "",
-            "stderr": "No generated tests passed validation.",
+            "stderr": "",
+            "execution_skipped": True,
         }
 
+        execution_mode = "static_only"
+
     return {
-        "repository": repo,
-        "status": "scanned",
-        "python_files": scan["python_files"],
-        "test_files": scan["test_files"],
-        "has_tests_folder": scan["has_tests_folder"],
-        "discovered_source_files": source_files,
-        "discovered_test_files": test_files,
+        **scan,
+        "source_type": source_type,
+        "execution_mode": execution_mode,
+        "source_files": source_files,
+        "test_files_discovered": test_files,
         "gaps": gap_records,
         "test_plans": test_plans,
         "generated_tests": generated_tests,
         "unsupported_plans": unsupported_plans,
-        "validation_results": validation["validation_results"],
-        "validation_summary": {
-            "valid": len(validation["valid_tests"]),
-            "invalid": len(validation["invalid_tests"]),
-            "collection_success": validation["collection"]["success"],
-        },
+        "validation_results": validation_results,
+        "validation_summary": validation_summary,
         "test_results": test_results,
     }
+
+
+@app.post("/analyze")
+def analyze(request: AnalyzeRequest):
+    try:
+        with resolve_repository(request.repository_url) as repository:
+            return _analyze_repository(
+                repository["repo_path"],
+                execution_allowed=repository["execution_allowed"],
+                source_type=repository["source_type"],
+            )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="GitHub repository clone timed out.",
+        ) from exc
