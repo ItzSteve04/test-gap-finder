@@ -37,7 +37,7 @@ from typing import Any
 
 from analyzer.code_analysis.function_extractor import extract_repository_functions
 from analyzer.code_analysis.test_extractor import extract_repository_tests
-
+from analyzer.gap_detection.edge_case_detector import detect_edge_case_gaps
 
 # ---------------------------------------------------------------------------
 # Matching helpers
@@ -380,6 +380,12 @@ def analyze_repository_gaps(repo_path: str) -> list[dict[str, Any]]:
             missing_exceptions,
         )
 
+        edge_case_gaps = detect_edge_case_gaps(
+            func_meta=func_meta,
+            covering_tests=covering_tests,
+            missing_branches=missing_branches,
+        )
+
         gap_records.append({
             "function":           func_meta["name"],
             "qualified_name":     func_meta.get(
@@ -393,6 +399,7 @@ def analyze_repository_gaps(repo_path: str) -> list[dict[str, Any]]:
             "covering_tests":     [t["name"] for t in covering_tests],
             "missing_branches":   missing_branches,
             "missing_exceptions": missing_exceptions,
+            "edge_case_gaps":     edge_case_gaps,
             "confidence":         confidence,
             "confidence_label":   confidence_label,
             "reason":             reason,

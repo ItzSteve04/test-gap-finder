@@ -128,6 +128,27 @@ def _extract_raises(
 
     return raises
 
+def _call_name(node: ast.Call) -> str:
+    """Return a readable function name for a call expression."""
+
+    return _safe_unparse(node.func)
+
+
+def _extract_calls(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    """Extract function/dependency calls made inside a callable."""
+
+    calls: list[str] = []
+
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call):
+            call_name = _call_name(child)
+
+            if call_name and call_name not in calls:
+                calls.append(call_name)
+
+    return calls
 
 def _extract_returns(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
@@ -184,6 +205,7 @@ def _build_function_metadata(
         "branches": _extract_branches(node),
         "raises": _extract_raises(node),
         "returns": _extract_returns(node),
+        "calls": _extract_calls(node),
     }
 
 
