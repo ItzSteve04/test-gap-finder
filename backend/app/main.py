@@ -45,9 +45,21 @@ def health():
     return {"status": "ok"}
 
 
+# The project root is one level above this file (backend/app/main.py → project root).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
 @app.post("/analyze")
 def analyze(request: AnalyzeRequest):
     repo = request.repository_url
+
+    # Resolve relative paths against the project root so users can type short
+    # names like "sample_repo" regardless of the server's working directory.
+    repo_path = Path(repo)
+    if not repo_path.is_absolute():
+        repo_path = (_PROJECT_ROOT / repo_path).resolve()
+
+    repo = str(repo_path)
 
     if not os.path.isdir(repo):
         raise HTTPException(status_code=400, detail=f"Repository path not found: {repo}")

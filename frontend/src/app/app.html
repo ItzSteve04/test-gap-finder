@@ -12,13 +12,13 @@
         placeholder="Enter repo name or path (e.g. sample_repo)"
         [(ngModel)]="repoPath"
         name="repoPath"
-        [disabled]="loading()"
+        [disabled]="!!loading()"
         autocomplete="off"
       />
       <button
         type="submit"
         class="analyze-btn"
-        [disabled]="loading() || !repoPath.trim()"
+        [disabled]="!!loading() || !repoPath.trim()"
       >
         @if (loading()) {
           <span class="spinner"></span> Analyzing…
