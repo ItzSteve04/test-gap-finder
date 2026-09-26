@@ -57,6 +57,7 @@ export class App implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  readonly currentYear = new Date().getFullYear();
   repoPath = '';
   loading = signal(false);
   result = signal<AnalyzeResponse | null>(null);

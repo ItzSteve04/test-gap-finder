@@ -52,16 +52,20 @@
           </mat-form-field>
           <button
             mat-flat-button
+            color="primary"
             type="submit"
             class="analyze-btn"
             [disabled]="!!loading() || !repoPath.trim()"
           >
             @if (loading()) {
-              <mat-spinner diameter="18" />
-              Analyzing…
+              <ng-container>
+                <mat-spinner diameter="18" />
+                Analyzing…
+              </ng-container>
             } @else {
               <ng-container>
-                <mat-icon>search</mat-icon> Analyze
+                <mat-icon>search</mat-icon>
+                <span>Analyze</span>
               </ng-container>
             }
           </button>
@@ -202,6 +206,11 @@
         </section>
       }
     </div>
+
+    <!-- ─── Copyright footer ────────────────────────────────────── -->
+    <footer class="app-footer">
+      <span>&copy; {{ currentYear }} Dylan Glynn, Stephen McNeil &amp; Ben Chadwick. All rights reserved.</span>
+    </footer>
 
   </mat-sidenav-content>
 </mat-sidenav-container>
