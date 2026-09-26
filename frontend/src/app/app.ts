@@ -1,20 +1,42 @@
 import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { AnalyzerService, AnalyzeResponse } from './analyzer.service';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, CommonModule],
+  imports: [
+    FormsModule,
+    CommonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatIconModule,
+    MatExpansionModule,
+    MatProgressBarModule,
+    MatProgressSpinnerModule,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
 export class App {
   private readonly analyzerService = inject(AnalyzerService);
+  private readonly snackBar = inject(MatSnackBar);
 
   repoPath = '';
   loading = signal(false);
-  error = signal<string | null>(null);
   result = signal<AnalyzeResponse | null>(null);
 
   analyze(): void {
@@ -22,7 +44,6 @@ export class App {
     if (!path) return;
 
     this.loading.set(true);
-    this.error.set(null);
     this.result.set(null);
 
     this.analyzerService.analyze(path).subscribe({
@@ -31,7 +52,8 @@ export class App {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.error?.detail ?? err?.message ?? 'An unexpected error occurred.');
+        const msg = err?.error?.detail ?? err?.message ?? 'An unexpected error occurred.';
+        this.snackBar.open(msg, 'Dismiss', { duration: 8000 });
         this.loading.set(false);
       }
     });

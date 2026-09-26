@@ -1,17 +1,3 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
-  background: #f7f8fa;
-  color: #1f2328;
-  line-height: 1.6;
-  min-height: 100vh;
-}
-
 /* ─── Page shell ──────────────────────────────────────────────── */
 
 .page {
@@ -31,11 +17,12 @@ body {
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.03em;
+  color: var(--mat-sys-on-surface);
 }
 
 .header .subtitle {
   margin-top: 0.4rem;
-  color: #57606a;
+  color: var(--mat-sys-on-surface-variant);
   font-size: 0.95rem;
 }
 
@@ -47,96 +34,33 @@ body {
 
 .input-form {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.repo-input {
+.repo-field {
   flex: 1;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  background: #fff;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.repo-input:focus {
-  border-color: #3b82d4;
-  box-shadow: 0 0 0 3px rgba(59, 130, 212, 0.15);
-}
-
-.repo-input:disabled {
-  background: #f0f2f4;
-  cursor: not-allowed;
 }
 
 .analyze-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.65rem 1.4rem;
-  background: #1f2328;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
+  height: 56px;
   white-space: nowrap;
-  transition: background 0.15s;
-}
-
-.analyze-btn:hover:not(:disabled) {
-  background: #3b82d4;
-}
-
-.analyze-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ─── Spinner ────────────────────────────────────────────────── */
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-/* ─── Error banner ───────────────────────────────────────────── */
-
-.error-banner {
-  background: #fff5f5;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
 }
 
 /* ─── Coverage hero ──────────────────────────────────────────── */
 
 .coverage-hero {
+  margin-bottom: 1.5rem;
+}
+
+.coverage-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.25rem;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 2rem 2.5rem;
-  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem 0.5rem;
   text-align: center;
+  flex-wrap: wrap;
 }
 
 .coverage-block {
@@ -146,11 +70,11 @@ body {
 }
 
 .coverage-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #57606a;
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .coverage-value {
@@ -160,28 +84,12 @@ body {
   letter-spacing: -0.04em;
 }
 
-.coverage-block.before .coverage-value {
-  color: #dc2626;
-}
-
-.coverage-block.after .coverage-value {
-  color: #16a34a;
-}
+.coverage-value.before { color: var(--mat-sys-error); }
+.coverage-value.after  { color: var(--mat-sys-primary); }
 
 .coverage-arrow {
-  font-size: 2.5rem;
-  color: #d0d7de;
-  line-height: 1;
-}
-
-.coverage-gain {
-  background: #dcfce7;
-  color: #15803d;
-  font-weight: 700;
-  font-size: 1.1rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 99px;
-  align-self: center;
+  font-size: 2rem !important;
+  color: var(--mat-sys-outline);
 }
 
 /* ─── Stats grid ─────────────────────────────────────────────── */
@@ -193,14 +101,11 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.stat-card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem;
+.stats-grid mat-card-content {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  padding: 1rem !important;
 }
 
 .stat-label {
@@ -208,42 +113,22 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #57606a;
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .stat-value {
   font-size: 1.05rem;
   font-weight: 700;
   word-break: break-word;
+  color: var(--mat-sys-on-surface);
 }
 
-.stat-card.pass .stat-value {
-  color: #16a34a;
-}
-
-.stat-card.fail .stat-value {
-  color: #dc2626;
-}
-
-.status-badge {
-  display: inline-block;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.1rem 0.55rem;
-  border-radius: 99px;
-}
+.stat-pass .stat-value { color: var(--mat-sys-primary); }
+.stat-fail .stat-value { color: var(--mat-sys-error); }
 
 /* ─── List sections ──────────────────────────────────────────── */
 
 .list-section {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1.25rem 1.5rem;
   margin-bottom: 1rem;
 }
 
@@ -254,108 +139,75 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #e5e7eb;
-  color: #57606a;
-  font-size: 0.72rem;
-  font-weight: 700;
-  min-width: 1.4rem;
-  height: 1.4rem;
-  border-radius: 99px;
-  padding: 0 0.4rem;
+  color: var(--mat-sys-on-surface);
 }
 
 .empty-note {
-  color: #57606a;
+  color: var(--mat-sys-on-surface-variant);
   font-size: 0.9rem;
+  padding: 0.5rem 0;
 }
 
-.item-list {
-  list-style: none;
+/* ─── Gap panels ─────────────────────────────────────────────── */
+
+.gap-title {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.item-list li {
-  font-size: 0.9rem;
-  padding: 0.55rem 0.75rem;
-  background: #f7f8fa;
-  border: 1px solid #e5e7eb;
-  border-radius: 5px;
-  word-break: break-word;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.item-list li strong {
+.gap-title code {
   font-family: ui-monospace, 'Cascadia Code', monospace;
   font-size: 0.88rem;
 }
 
-.gap-reason {
-  font-size: 0.82rem;
-  color: #57606a;
-}
+.confidence-high   { --mdc-chip-label-text-color: var(--mat-sys-error); }
+.confidence-medium { --mdc-chip-label-text-color: var(--mat-sys-tertiary); }
+.confidence-low    { --mdc-chip-label-text-color: var(--mat-sys-secondary); }
 
-.confidence-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
+.sub-heading {
+  font-size: 0.78rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.1rem 0.45rem;
-  border-radius: 99px;
-  margin-left: 0.5rem;
+  letter-spacing: 0.06em;
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0.5rem 0 0.25rem;
 }
-
-.confidence-high   { background: #fee2e2; color: #b91c1c; }
-.confidence-medium { background: #fef9c3; color: #854d0e; }
-.confidence-low    { background: #e0f2fe; color: #075985; }
 
 .sub-list {
   list-style: none;
+  padding: 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  margin-top: 0.25rem;
+  gap: 0.2rem;
   padding-left: 0.75rem;
-  border-left: 2px solid #e5e7eb;
+  border-left: 2px solid var(--mat-sys-outline-variant);
 }
 
 .sub-list li {
-  font-size: 0.8rem;
-  padding: 0;
-  background: none;
-  border: none;
-  border-radius: 0;
-  font-family: inherit;
+  font-size: 0.82rem;
 }
 
-.sub-list code {
-  font-family: ui-monospace, 'Cascadia Code', monospace;
-  font-size: 0.78rem;
-  background: #f0f2f4;
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
+.sub-list code,
+.gap-title code {
+  background: var(--mat-sys-surface-variant);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
 }
+
+/* ─── Code block ─────────────────────────────────────────────── */
 
 .code-block {
   font-family: ui-monospace, 'Cascadia Code', monospace;
   font-size: 0.78rem;
-  background: #f0f2f4;
-  border: 1px solid #e5e7eb;
+  background: var(--mat-sys-surface-variant);
+  border: 1px solid var(--mat-sys-outline-variant);
   border-radius: 4px;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
   overflow-x: auto;
   white-space: pre;
-  margin-top: 0.35rem;
+  margin: 0;
   line-height: 1.5;
 }
 
@@ -364,9 +216,14 @@ body {
 @media (max-width: 520px) {
   .input-form {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .coverage-hero {
+  .analyze-btn {
+    width: 100%;
+  }
+
+  .coverage-row {
     flex-direction: column;
     gap: 0.75rem;
   }
