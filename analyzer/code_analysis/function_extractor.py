@@ -1,176 +1,268 @@
-"""Extract structured metadata from Python source files using the AST.
+"""Extract metadata from Python source functions and class methods."""
 
-For each function defined at the top level of a module this module extracts:
-
-- ``name``            – function name
-- ``source_file``     – absolute path to the file
-- ``arguments``       – positional/keyword argument names (no ``*args``/``**kwargs`` noise)
-- ``branches``        – list of ``{"condition": str}`` for every ``if`` statement
-- ``raises``          – list of ``{"exc_type": str, "message": str}`` for every ``raise``
-- ``returns``         – list of unparsed return-expression strings where a value is present
-
-All values are JSON-serializable (strings, lists, dicts).
-"""
+from __future__ import annotations
 
 import ast
 import os
-from pathlib import Path
 
 from analyzer.code_analysis.repo_scanner import discover_files
 
 
 # ---------------------------------------------------------------------------
-# Low-level AST helpers
+# Parsing helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_file(path: str) -> ast.Module:
-    return ast.parse(Path(path).read_text(encoding="utf-8"))
+    """Parse a Python file and return its AST."""
+
+    with open(path, "r", encoding="utf-8") as handle:
+        source = handle.read()
+
+    return ast.parse(source, filename=path)
 
 
-def _top_level_functions(tree: ast.Module) -> list[ast.FunctionDef]:
-    """Return every top-level ``FunctionDef`` in *tree*."""
-    return [
-        node for node in ast.iter_child_nodes(tree)
-        if isinstance(node, ast.FunctionDef)
-    ]
+def _safe_unparse(node: ast.AST | None) -> str:
+    """Return source-like text for an AST node."""
+
+    if node is None:
+        return ""
+
+    try:
+        return ast.unparse(node)
+    except Exception:
+        return ""
 
 
-def _extract_arguments(func: ast.FunctionDef) -> list[str]:
-    """Return the plain argument names for *func* (positional + keyword-only).
-
-    ``*args`` and ``**kwargs`` are excluded because they do not map to
-    individual parameter names that a caller must supply.
-    """
-    args = func.args
-    names: list[str] = []
-    for arg in args.posonlyargs + args.args + args.kwonlyargs:
-        names.append(arg.arg)
-    return names
+# ---------------------------------------------------------------------------
+# Function metadata helpers
+# ---------------------------------------------------------------------------
 
 
-def _extract_branches(func: ast.FunctionDef) -> list[dict]:
-    """Return one entry per ``if`` statement inside *func*.
+def _extract_arguments(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    """Return function argument names."""
 
-    Each entry::
+    arguments: list[str] = []
 
-        {"condition": "<unparsed condition string>"}
-    """
-    results = []
-    for node in ast.walk(func):
-        if not isinstance(node, ast.If):
+    for arg in node.args.posonlyargs:
+        arguments.append(arg.arg)
+
+    for arg in node.args.args:
+        arguments.append(arg.arg)
+
+    if node.args.vararg:
+        arguments.append(f"*{node.args.vararg.arg}")
+
+    for arg in node.args.kwonlyargs:
+        arguments.append(arg.arg)
+
+    if node.args.kwarg:
+        arguments.append(f"**{node.args.kwarg.arg}")
+
+    return arguments
+
+
+def _extract_branches(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[dict]:
+    """Extract branch conditions from a function or method."""
+
+    branches: list[dict] = []
+
+    for child in ast.walk(node):
+        if isinstance(child, ast.If):
+            branches.append({
+                "condition": _safe_unparse(child.test),
+            })
+
+        elif isinstance(child, ast.While):
+            branches.append({
+                "condition": _safe_unparse(child.test),
+            })
+
+        elif isinstance(child, ast.IfExp):
+            branches.append({
+                "condition": _safe_unparse(child.test),
+            })
+
+    return branches
+
+
+def _extract_raises(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[dict]:
+    """Extract explicit raise statements."""
+
+    raises: list[dict] = []
+
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Raise):
             continue
-        try:
-            condition = ast.unparse(node.test)
-        except Exception:
-            condition = "<condition>"
-        results.append({"condition": condition})
-    return results
 
-
-def _extract_raises(func: ast.FunctionDef) -> list[dict]:
-    """Return one entry per ``raise`` inside *func*.
-
-    Each entry::
-
-        {"exc_type": "ValueError", "message": "Price cannot be negative"}
-
-    ``message`` is the first string-literal argument to the exception
-    constructor, or ``""`` when none is present.
-    """
-    results = []
-    for node in ast.walk(func):
-        if not isinstance(node, ast.Raise) or node.exc is None:
-            continue
-        exc = node.exc
         exc_type = ""
         message = ""
+
+        exc = child.exc
+
         if isinstance(exc, ast.Call):
-            if isinstance(exc.func, ast.Name):
-                exc_type = exc.func.id
-            elif isinstance(exc.func, ast.Attribute):
-                exc_type = exc.func.attr
-            if exc.args and isinstance(exc.args[0], ast.Constant):
-                message = str(exc.args[0].value)
-        elif isinstance(exc, ast.Name):
-            exc_type = exc.id
-        results.append({"exc_type": exc_type, "message": message})
-    return results
+            exc_type = _safe_unparse(exc.func)
+
+            if exc.args:
+                first_arg = exc.args[0]
+
+                if isinstance(first_arg, ast.Constant):
+                    if isinstance(first_arg.value, str):
+                        message = first_arg.value
+                else:
+                    message = _safe_unparse(first_arg)
+
+        elif exc is not None:
+            exc_type = _safe_unparse(exc)
+
+        raises.append({
+            "exc_type": exc_type,
+            "message": message,
+        })
+
+    return raises
 
 
-def _extract_returns(func: ast.FunctionDef) -> list[str]:
-    """Return one unparsed expression string per ``return <value>`` statement.
+def _extract_returns(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    """Extract return expressions."""
 
-    Bare ``return`` (no value) is omitted because it carries no information
-    about what the function produces.
-    """
-    results = []
-    for node in ast.walk(func):
-        if not isinstance(node, ast.Return) or node.value is None:
-            continue
-        try:
-            expr = ast.unparse(node.value)
-        except Exception:
-            expr = "<return value>"
-        results.append(expr)
-    return results
+    returns: list[str] = []
+
+    for child in ast.walk(node):
+        if isinstance(child, ast.Return):
+            returns.append(_safe_unparse(child.value))
+
+    return returns
+
+
+def _build_function_metadata(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    source_file: str,
+    class_name: str | None = None,
+) -> dict:
+    """Build metadata for one function or class method."""
+
+    is_method = class_name is not None
+    is_async = isinstance(node, ast.AsyncFunctionDef)
+
+    qualified_name = (
+        f"{class_name}.{node.name}"
+        if class_name
+        else node.name
+    )
+
+    arguments = _extract_arguments(node)
+
+    # self/cls are implementation details rather than caller-supplied values.
+    public_arguments = [
+        argument
+        for argument in arguments
+        if argument not in {"self", "cls"}
+    ]
+
+    return {
+        # Keep `name` as the raw callable name for compatibility with the
+        # existing matcher and planner.
+        "name": node.name,
+
+        # New richer metadata.
+        "qualified_name": qualified_name,
+        "class_name": class_name,
+        "is_method": is_method,
+        "is_async": is_async,
+
+        "source_file": source_file,
+        "arguments": public_arguments,
+        "branches": _extract_branches(node),
+        "raises": _extract_raises(node),
+        "returns": _extract_returns(node),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Per-file extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_functions(source_file: str) -> list[dict]:
-    """Parse *source_file* and return structured metadata for every function.
+    """Extract top-level functions and class methods from a Python file.
 
-    Args:
-        source_file: Path to a Python source file.
+    Supported callable types:
 
-    Returns:
-        A list of dicts — one per top-level function — each containing::
+    - def function(...)
+    - async def function(...)
+    - class methods
+    - async class methods
 
-            {
-                "name":        str,
-                "source_file": str,         # absolute path
-                "arguments":   list[str],
-                "branches":    list[{"condition": str}],
-                "raises":      list[{"exc_type": str, "message": str}],
-                "returns":     list[str],
-            }
+    Nested functions are intentionally ignored for now.
     """
+
     abs_path = os.path.abspath(source_file)
     tree = _parse_file(abs_path)
-    results = []
-    for func in _top_level_functions(tree):
-        results.append({
-            "name":        func.name,
-            "source_file": abs_path,
-            "arguments":   _extract_arguments(func),
-            "branches":    _extract_branches(func),
-            "raises":      _extract_raises(func),
-            "returns":     _extract_returns(func),
-        })
+
+    results: list[dict] = []
+
+    for node in tree.body:
+
+        # ---------------------------------------------------------------
+        # Top-level synchronous or async function
+        # ---------------------------------------------------------------
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            results.append(
+                _build_function_metadata(
+                    node=node,
+                    source_file=abs_path,
+                    class_name=None,
+                )
+            )
+
+        # ---------------------------------------------------------------
+        # Class methods
+        # ---------------------------------------------------------------
+        elif isinstance(node, ast.ClassDef):
+
+            for child in node.body:
+                if isinstance(
+                    child,
+                    (ast.FunctionDef, ast.AsyncFunctionDef),
+                ):
+                    results.append(
+                        _build_function_metadata(
+                            node=child,
+                            source_file=abs_path,
+                            class_name=node.name,
+                        )
+                    )
+
     return results
 
 
 # ---------------------------------------------------------------------------
-# Repository-level extraction
+# Repository extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_repository_functions(repo_path: str) -> list[dict]:
-    """Discover all source files in *repo_path* and extract function metadata.
+    """Extract function metadata from every discovered source file."""
 
-    Uses :func:`~analyzer.code_analysis.repo_scanner.discover_files` for
-    discovery, so the same ignore rules and test-file filters apply.
-
-    Args:
-        repo_path: Absolute or relative path to the repository root.
-
-    Returns:
-        A flat list of function-metadata dicts (see :func:`extract_functions`),
-        one entry per function across all discovered source files.
-    """
     discovered = discover_files(repo_path)
-    all_functions = []
+
+    results: list[dict] = []
+
     for source_file in discovered["source_files"]:
-        all_functions.extend(extract_functions(source_file))
-    return all_functions
+        try:
+            results.extend(extract_functions(source_file))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            # One unsupported/broken source file should not prevent the rest
+            # of the repository from being analyzed.
+            continue
+
+    return results

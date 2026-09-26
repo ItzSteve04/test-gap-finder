@@ -321,6 +321,13 @@ def analyze_repository_gaps(repo_path: str) -> list[dict[str, Any]]:
 
         gap_records.append({
             "function":           func_meta["name"],
+            "qualified_name":     func_meta.get(
+                "qualified_name",
+                func_meta["name"],
+            ),
+            "class_name":         func_meta.get("class_name"),
+            "is_method":          func_meta.get("is_method", False),
+            "is_async":           func_meta.get("is_async", False),
             "source_file":        func_meta["source_file"],
             "covering_tests":     [t["name"] for t in covering_tests],
             "missing_branches":   missing_branches,
