@@ -19,6 +19,9 @@ from analyzer.test_generation.plan_driven_generator import (
     generate_tests_from_plans,
     generate_test_module_from_plans,
 )
+
+from analyzer.test_generation.test_validator import validate_generated_tests
+
 # Legacy generator kept available for fallback (not used by the main flow).
 from analyzer.test_generation.test_generator import generate_tests_legacy  # noqa: F401
 from analyzer.runner.test_runner import run_tests
@@ -73,14 +76,37 @@ def analyze(request: AnalyzeRequest):
     # Step 3 — plan-driven test generation
     generated_tests, unsupported_plans = generate_tests_from_plans(test_plans)
 
-    # Step 4 — build a pytest module from the generated tests and run it
+    # Step 4 — build the generated pytest module
     module_text = generate_test_module_from_plans(test_plans, source_files)
-    test_results = run_tests(
-        module_text,
-        repo,
+
+    # Step 5 — validate generated tests before execution
+    validation = validate_generated_tests(
+        generated_tests=generated_tests,
+        module_text=module_text,
+        repo_path=repo,
         test_files=test_files if test_files else None,
-        source_dirs=source_dirs if source_dirs else None,
     )
+
+    # Only validated tests are allowed to reach the runner.
+    validated_module_text = validation["validated_module_text"]
+
+    if validation["valid_tests"]:
+        test_results = run_tests(
+            validated_module_text,
+            repo,
+            test_files=test_files if test_files else None,
+            source_dirs=source_dirs if source_dirs else None,
+        )
+    else:
+        test_results = {
+            "passed": 0,
+            "failed": 0,
+            "exit_code": 1,
+            "coverage_before": 0.0,
+            "coverage_after": 0.0,
+            "stdout": "",
+            "stderr": "No generated tests passed validation.",
+        }
 
     return {
         "repository": repo,
@@ -94,5 +120,11 @@ def analyze(request: AnalyzeRequest):
         "test_plans": test_plans,
         "generated_tests": generated_tests,
         "unsupported_plans": unsupported_plans,
+        "validation_results": validation["validation_results"],
+        "validation_summary": {
+            "valid": len(validation["valid_tests"]),
+            "invalid": len(validation["invalid_tests"]),
+            "collection_success": validation["collection"]["success"],
+        },
         "test_results": test_results,
     }
