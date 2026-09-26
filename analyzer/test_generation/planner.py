@@ -120,6 +120,14 @@ class DeterministicPlanner:
     deriving human-readable descriptions from the gap strings and the function
     metadata present in the prompt payload.  No function-specific names are
     hard-coded; all text is derived from the payload at runtime.
+
+    Deduplication
+    ~~~~~~~~~~~~~
+    When a branch condition and an exception guard clearly describe the same
+    scenario (i.e. the ``raise`` sits directly under that branch), the branch
+    item is suppressed and the more precise exception item is kept.  The pairing
+    is detected generically by :meth:`_branch_subsumed_by_exceptions` — no
+    function-specific logic is embedded.
     """
 
     # Regex to parse "ExcType: \"message\"" from missing_exceptions entries
@@ -128,11 +136,14 @@ class DeterministicPlanner:
     def plan(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         """Derive plan items from *payload* using deterministic rules.
 
+        Exception items are generated first; branch items whose underlying guard
+        is already represented by an exception item are then suppressed.
+
         Args:
             payload: Dict produced by :func:`~analyzer.test_generation.plan_builder.build_prompt_payload`.
 
         Returns:
-            List of plan-item dicts.
+            Deduplicated list of plan-item dicts.
         """
         func_name: str = payload["function"]
         arguments: list[str] = payload["arguments"]
@@ -145,9 +156,67 @@ class DeterministicPlanner:
             plans.append(self._plan_exception(func_name, arguments, exc_str))
 
         for branch_cond in missing_branches:
-            plans.append(self._plan_branch(func_name, arguments, branch_cond))
+            if not self._branch_subsumed_by_exceptions(branch_cond, missing_exceptions):
+                plans.append(self._plan_branch(func_name, arguments, branch_cond))
 
         return plans
+
+    # ------------------------------------------------------------------
+    # Deduplication helper
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _branch_subsumed_by_exceptions(
+        cls, branch_cond: str, missing_exceptions: list[str]
+    ) -> bool:
+        """Return True when *branch_cond* is already covered by an exception item.
+
+        A branch is considered subsumed when either of these generic signals fire:
+
+        1. **Token overlap** — any identifier/word token from the branch condition
+           also appears in the exception message.  This catches guards like
+           ``price < 0`` / ``"Price cannot be negative"`` where the variable name
+           ``price`` links the two.
+
+        2. **Truthiness guard** — the branch matches ``not <identifier>``,
+           indicating an empty/falsy check.  Any exception whose message contains
+           a word from ``{"empty", "none", "missing", "required"}`` is treated as
+           describing the same scenario, even when the variable name is absent
+           from the message (e.g. ``not items`` / ``"Cart is empty"``).
+
+        Args:
+            branch_cond:        The raw branch condition string.
+            missing_exceptions: The list of exception gap strings to test against.
+
+        Returns:
+            ``True`` if the branch should be suppressed.
+        """
+        cond_tokens = set(_words_in(branch_cond.lower()))
+
+        # Detect a bare truthiness guard: "not <single_identifier>"
+        truthiness_guard = bool(re.match(r'^not\s+\w+$', branch_cond.strip()))
+
+        # Sentinel words that indicate an emptiness/absence exception message
+        _EMPTINESS_WORDS = {"empty", "none", "missing", "required"}
+
+        for exc_str in missing_exceptions:
+            m = cls._EXC_RE.match(exc_str)
+            if not m:
+                continue
+            msg = (m.group(2) or "").lower()
+            msg_tokens = set(_words_in(msg))
+
+            # Rule 1 — shared identifier token (exclude pure operator words)
+            _NOISE = {"not", "and", "or", "is", "be", "to", "a", "the"}
+            overlap = (cond_tokens - _NOISE) & (msg_tokens - _NOISE)
+            if overlap:
+                return True
+
+            # Rule 2 — truthiness guard paired with an emptiness-style message
+            if truthiness_guard and msg_tokens & _EMPTINESS_WORDS:
+                return True
+
+        return False
 
     # ------------------------------------------------------------------
     # Per-gap item builders
@@ -241,13 +310,34 @@ class DeterministicPlanner:
 
     @staticmethod
     def _condition_hint_from_message(message: str) -> str:
-        """Derive a short 'when ...' clause from an exception message string."""
-        msg = message.lower()
-        # Try to extract the most informative fragment after common patterns
+        """Derive a short 'when ...' clause from an exception message string.
+
+        Reconstructs a natural ``"the <subject> <predicate>"`` phrase by
+        splitting the message at the first verb-like keyword so that both the
+        subject noun and the predicate are preserved.
+
+        Examples::
+            "Cart is empty"                    → "the cart is empty"
+            "Price cannot be negative"         → "the price cannot be negative"
+            "Discount must be between 0-100"   → "the discount must be between 0-100"
+            "Quantity must be a positive int"  → "the quantity must be a positive int"
+            "cannot be zero"                   → "cannot be zero"   (no subject → no "the")
+        """
+        msg = message.strip()
+        msg_lower = msg.lower()
+
         for prefix in ("cannot be ", "must be ", "is ", "are "):
-            idx = msg.find(prefix)
-            if idx != -1:
-                return message[idx:].strip()
+            idx = msg_lower.find(prefix)
+            if idx == -1:
+                continue
+            subject = msg[:idx].strip()
+            predicate = msg[idx:].strip()
+            if subject:
+                # Keep the subject in its original case, lower-cased for readability
+                return f"the {subject.lower()} {predicate}"
+            # Message starts with the verb phrase — return it as-is
+            return predicate
+
         return f"an invalid value is supplied ({message})"
 
     @staticmethod

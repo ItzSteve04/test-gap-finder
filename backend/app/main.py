@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from analyzer.code_analysis.repo_scanner import scan_repository, discover_files
 from analyzer.gap_detection.gap_detector import detect_gaps
+from analyzer.gap_detection.repo_gap_analyzer import analyze_repository_gaps
 from analyzer.test_generation.test_generator import generate_tests, generate_test_module
 from analyzer.runner.test_runner import run_tests
 
@@ -55,27 +56,29 @@ def analyze(request: AnalyzeRequest):
                 return tf
         return None
 
-    # Analyse every source file; combine all gap findings.
-    all_gaps: list[dict] = []
+    # Generic repository-level gap analysis (used for the API response).
+    gap_records = analyze_repository_gaps(repo)
+
+    # Per-file gap detection with the old detect_gaps format — used only to
+    # drive generate_tests / run_tests which expect the legacy missing_cases shape.
+    legacy_gaps: list[dict] = []
     for src in source_files:
         test_file = _find_test_for(src)
         if test_file is None:
-            # No matching test file — every function with branches/raises is a gap.
-            # Pass the source path twice; detect_gaps handles a missing test
-            # by treating it as zero coverage.  We pass src as test_path so
-            # the parser doesn't crash; detect_gaps will find no calls there.
-            test_file = src  # self-comparison → no calls found → all gaps flagged
+            # No matching test file — pass the source path twice so detect_gaps
+            # finds no calls and flags all paths as gaps.
+            test_file = src
         file_gaps = detect_gaps(src, test_file)
         for gap in file_gaps:
             gap["source_file"] = src
-        all_gaps.extend(file_gaps)
+        legacy_gaps.extend(file_gaps)
 
     # Unique source directories (for coverage measurement)
     source_dirs = list({str(Path(f).parent) for f in source_files})
 
-    # Generate and run tests (combined across all gap findings)
-    generated_tests = generate_tests(all_gaps)
-    module_text = generate_test_module(all_gaps)
+    # Generate and run tests (uses legacy missing_cases format — unchanged)
+    generated_tests = generate_tests(legacy_gaps)
+    module_text = generate_test_module(legacy_gaps)
     test_results = run_tests(
         module_text,
         repo,
@@ -91,7 +94,7 @@ def analyze(request: AnalyzeRequest):
         "has_tests_folder": scan["has_tests_folder"],
         "discovered_source_files": source_files,
         "discovered_test_files": test_files,
-        "gaps": all_gaps,
+        "gaps": gap_records,
         "generated_tests": generated_tests,
         "test_results": test_results,
     }
