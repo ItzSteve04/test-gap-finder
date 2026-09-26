@@ -104,6 +104,7 @@ def analyze(request: AnalyzeRequest):
             "exit_code": 1,
             "coverage_before": 0.0,
             "coverage_after": 0.0,
+            "potential_bug_findings": [],
             "stdout": "",
             "stderr": "No generated tests passed validation.",
         }

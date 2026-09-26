@@ -14,6 +14,40 @@ import subprocess
 import sys
 from pathlib import Path
 
+def _extract_potential_bug_findings(stdout: str) -> list[dict]:
+    """Extract failing generated tests as potential bug findings."""
+
+    findings: list[dict] = []
+
+    for line in stdout.splitlines():
+        stripped = line.strip()
+
+        if "_generated_tests_tmp.py::" not in stripped:
+            continue
+
+        if " FAILED" not in stripped:
+            continue
+
+        try:
+            test_part = stripped.split("::", 1)[1]
+            test_name = test_part.split()[0]
+        except (IndexError, ValueError):
+            continue
+
+        finding = {
+            "test_name": test_name,
+            "status": "potential_bug",
+            "reason": (
+                "A generated test was valid and collected successfully, "
+                "but failed against the target implementation."
+            ),
+        }
+
+        if finding not in findings:
+            findings.append(finding)
+
+    return findings
+
 
 def run_tests(module_text: str, repo_path: str,
               test_files: list[str] | None = None,
@@ -43,6 +77,7 @@ def run_tests(module_text: str, repo_path: str,
                 "exit_code":        int,
                 "coverage_before":  float,   # % covered by original tests
                 "coverage_after":   float,   # % covered after adding generated tests
+                "potential_bug_findings":  list[dict],
                 "stdout":           str,
                 "stderr":           str,
             }
@@ -83,14 +118,19 @@ def run_tests(module_text: str, repo_path: str,
     passed = _parse_count(after_result.stdout, "passed")
     failed = _parse_count(after_result.stdout, "failed")
 
+    potential_bug_findings = _extract_potential_bug_findings(
+        after_result.stdout
+    )
+
     return {
-        "passed":          passed,
-        "failed":          failed,
-        "exit_code":       after_result.returncode,
-        "coverage_before": coverage_before,
-        "coverage_after":  coverage_after,
-        "stdout":          after_result.stdout,
-        "stderr":          after_result.stderr,
+        "passed":                  passed,
+        "failed":                  failed,
+        "exit_code":               after_result.returncode,
+        "coverage_before":         coverage_before,
+        "coverage_after":          coverage_after,
+        "potential_bug_findings":  potential_bug_findings,
+        "stdout":                  after_result.stdout,
+        "stderr":                  after_result.stderr,
     }
 
 
