@@ -1,7 +1,13 @@
-"""Deterministic pytest test code generator.
+"""Legacy deterministic pytest test code generator (raw-gap-string based).
 
 Accepts gap detection results from detect_gaps() and returns structured
 test suggestions — no LLM or external API required.
+
+.. note::
+    This module is kept as a fallback.  The main /analyze workflow now uses
+    :mod:`analyzer.test_generation.plan_driven_generator` which accepts the
+    structured plan items returned by ``generate_test_plan()`` instead of
+    these raw gap strings.
 
 Each suggestion contains:
     - function  : name of the function under test
@@ -127,7 +133,7 @@ def _handle_branch(function: str, gap: str, condition: str) -> str | None:
         # Unknown coupon fallback
         return _value_template(
             function, gap,
-            f"apply_coupon(100.0, 'UNKNOWN')", "100.0",
+            "apply_coupon(100.0, 'UNKNOWN')", "100.0",
         )
 
     # calculate_discount guard branches — same inputs as the raise tests
@@ -178,8 +184,13 @@ _IMPORTS = textwrap.dedent("""\
 # Public API
 # ---------------------------------------------------------------------------
 
-def generate_tests(gaps: list[dict]) -> list[dict]:
-    """Generate pytest test suggestions from detect_gaps() output.
+def generate_tests_legacy(gaps: list[dict]) -> list[dict]:
+    """Generate pytest test suggestions from detect_gaps() output (legacy).
+
+    This function is retained for fallback use only.  The main /analyze
+    workflow uses
+    :func:`~analyzer.test_generation.plan_driven_generator.generate_tests_from_plans`
+    which works from structured plan items.
 
     Duplicates are removed: when two different gaps produce identical test
     bodies, only the first occurrence is kept (preserving insertion order).
@@ -224,12 +235,23 @@ def generate_tests(gaps: list[dict]) -> list[dict]:
     return results
 
 
+def generate_tests(gaps: list[dict]) -> list[dict]:
+    """Backwards-compatible alias for :func:`generate_tests_legacy`.
+
+    Kept so any existing callers of ``generate_tests(gaps)`` continue to work
+    without modification.
+    """
+    return generate_tests_legacy(gaps)
+
+
 def generate_test_module(gaps: list[dict]) -> str:
     """Render all generated tests as a single importable pytest module string.
 
-    Useful for previewing or writing to disk later.
+    Useful for previewing or writing to disk later.  Uses the legacy gap-string
+    path.  For plan-driven output use
+    :func:`~analyzer.test_generation.plan_driven_generator.generate_test_module_from_plans`.
     """
-    snippets = [t["code"] for t in generate_tests(gaps)]
+    snippets = [t["code"] for t in generate_tests_legacy(gaps)]
     if not snippets:
         return _IMPORTS + "\n# No test suggestions generated.\n"
     return _IMPORTS + "\n\n" + "\n\n".join(snippets) + "\n"
