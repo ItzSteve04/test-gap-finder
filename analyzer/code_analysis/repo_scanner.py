@@ -1,80 +1,155 @@
-"""Scans a local repository path and returns basic structural metrics."""
+"""Scans a local repository path and returns structural Python project metrics."""
+
+from __future__ import annotations
 
 import os
+from pathlib import Path
+
 
 IGNORED_DIRS = {
-    ".venv", "venv", "node_modules", "__pycache__", ".git", "dist", "build",
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".nox",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    "dist",
+    "build",
+    "site",
+    "htmlcov",
+    ".coverage",
+    "coverage",
+    "target",
+    ".eggs",
+    "eggs",
+}
+
+TEST_DIR_NAMES = {
+    "test",
+    "tests",
 }
 
 
 def _is_test_file(filename: str) -> bool:
-    """Return True if *filename* matches pytest test-file conventions."""
-    return filename.startswith("test_") or filename.endswith("_test.py")
+    """Return True if filename matches common pytest test-file conventions."""
+    name = filename.lower()
+
+    return (
+        name.startswith("test_")
+        or name.endswith("_test.py")
+    )
+
+
+def _is_inside_test_dir(path: Path, repo_root: Path) -> bool:
+    """Return True when a file lives somewhere under test/ or tests/."""
+    try:
+        relative = path.relative_to(repo_root)
+    except ValueError:
+        return False
+
+    return any(part.lower() in TEST_DIR_NAMES for part in relative.parts[:-1])
+
+
+def _should_ignore_dir(dirname: str) -> bool:
+    """Return True for directories that should not be analyzed."""
+    return dirname.lower() in {name.lower() for name in IGNORED_DIRS}
 
 
 def discover_files(repo_path: str) -> dict:
-    """Recursively discover Python source and test files in *repo_path*.
+    """Recursively discover Python source and test files.
 
-    Skips directories listed in :data:`IGNORED_DIRS`.
+    This does not assume any particular project structure such as ``src/`` or
+    ``app/``. Any Python file anywhere in the repository can be discovered,
+    provided it is not inside an ignored directory.
+
+    A Python file is considered a test when either:
+
+    - its filename matches ``test_*.py``
+    - its filename matches ``*_test.py``
+    - it lives anywhere underneath a directory named ``test`` or ``tests``
 
     Args:
-        repo_path: Absolute or relative path to the repository root.
+        repo_path:
+            Absolute or relative path to the repository root.
 
     Returns:
-        A dict with:
-            - ``source_files`` (list[str]): absolute paths to non-test ``.py`` files
-            - ``test_files``   (list[str]): absolute paths to pytest test files
+        Dict containing sorted absolute source and test file paths.
     """
+
+    root = Path(repo_path).resolve()
+
     source_files: list[str] = []
     test_files: list[str] = []
 
-    for dirpath, dirnames, filenames in os.walk(repo_path):
-        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS]
-        for filename in filenames:
-            if not filename.endswith(".py"):
-                continue
-            full_path = os.path.join(dirpath, filename)
-            if _is_test_file(filename):
-                test_files.append(full_path)
-            else:
-                source_files.append(full_path)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            dirname
+            for dirname in dirnames
+            if not _should_ignore_dir(dirname)
+        ]
 
-    return {"source_files": source_files, "test_files": test_files}
+        current_dir = Path(dirpath)
+
+        for filename in filenames:
+            if not filename.lower().endswith(".py"):
+                continue
+
+            full_path = (current_dir / filename).resolve()
+
+            is_test = (
+                _is_test_file(filename)
+                or _is_inside_test_dir(full_path, root)
+            )
+
+            if is_test:
+                test_files.append(str(full_path))
+            else:
+                source_files.append(str(full_path))
+
+    source_files.sort()
+    test_files.sort()
+
+    return {
+        "source_files": source_files,
+        "test_files": test_files,
+    }
 
 
 def scan_repository(repo_path: str) -> dict:
-    """Scan a local repository and return basic metrics.
+    """Scan a local repository and return basic Python project metrics."""
 
-    Skips common generated/dependency directories (see IGNORED_DIRS).
+    root = Path(repo_path).resolve()
 
-    Args:
-        repo_path: Absolute or relative path to the repository root.
+    discovered = discover_files(str(root))
 
-    Returns:
-        A dict with:
-            - python_files (int): total .py files found
-            - test_files (int): .py files whose name starts with "test_" or ends with "_test.py"
-            - has_tests_folder (bool): whether a directory named "tests" or "test" exists
-    """
-    python_files = 0
-    test_files = 0
+    source_files = discovered["source_files"]
+    test_files = discovered["test_files"]
+
     has_tests_folder = False
 
-    for dirpath, dirnames, filenames in os.walk(repo_path):
-        # Prune ignored directories in-place so os.walk won't descend into them.
-        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS]
+    for dirpath, dirnames, _ in os.walk(root):
+        dirnames[:] = [
+            dirname
+            for dirname in dirnames
+            if not _should_ignore_dir(dirname)
+        ]
 
-        if not has_tests_folder:
-            has_tests_folder = any(d in ("tests", "test") for d in dirnames)
-
-        for filename in filenames:
-            if filename.endswith(".py"):
-                python_files += 1
-                if _is_test_file(filename):
-                    test_files += 1
+        if any(dirname.lower() in TEST_DIR_NAMES for dirname in dirnames):
+            has_tests_folder = True
+            break
 
     return {
-        "python_files": python_files,
-        "test_files": test_files,
+        "python_files": len(source_files) + len(test_files),
+        "test_files": len(test_files),
         "has_tests_folder": has_tests_folder,
     }

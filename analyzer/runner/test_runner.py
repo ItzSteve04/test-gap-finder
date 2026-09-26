@@ -14,6 +14,40 @@ import subprocess
 import sys
 from pathlib import Path
 
+def _extract_potential_bug_findings(stdout: str) -> list[dict]:
+    """Extract failing generated tests as potential bug findings."""
+
+    findings: list[dict] = []
+
+    for line in stdout.splitlines():
+        stripped = line.strip()
+
+        if "_generated_tests_tmp.py::" not in stripped:
+            continue
+
+        if " FAILED" not in stripped:
+            continue
+
+        try:
+            test_part = stripped.split("::", 1)[1]
+            test_name = test_part.split()[0]
+        except (IndexError, ValueError):
+            continue
+
+        finding = {
+            "test_name": test_name,
+            "status": "potential_bug",
+            "reason": (
+                "A generated test was valid and collected successfully, "
+                "but failed against the target implementation."
+            ),
+        }
+
+        if finding not in findings:
+            findings.append(finding)
+
+    return findings
+
 
 def run_tests(module_text: str, repo_path: str,
               test_files: list[str] | None = None,
@@ -43,6 +77,7 @@ def run_tests(module_text: str, repo_path: str,
                 "exit_code":        int,
                 "coverage_before":  float,   # % covered by original tests
                 "coverage_after":   float,   # % covered after adding generated tests
+                "potential_bug_findings":  list[dict],
                 "stdout":           str,
                 "stderr":           str,
             }
@@ -70,12 +105,18 @@ def run_tests(module_text: str, repo_path: str,
     # Pass 1 — original tests only
     before_result = _pytest_with_cov(original_tests, cov_sources)
     coverage_before = _parse_coverage(before_result.stdout)
+    coverage_before_details = _parse_coverage_details(
+        before_result.stdout
+    )
 
     # Pass 2 — original + generated tests
     try:
         tmp_path.write_text(module_text, encoding="utf-8")
         after_result = _pytest_with_cov(original_tests + [str(tmp_path)], cov_sources)
         coverage_after = _parse_coverage(after_result.stdout)
+        coverage_after_details = _parse_coverage_details(
+            after_result.stdout
+        )
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
@@ -83,14 +124,23 @@ def run_tests(module_text: str, repo_path: str,
     passed = _parse_count(after_result.stdout, "passed")
     failed = _parse_count(after_result.stdout, "failed")
 
+    potential_bug_findings = _extract_potential_bug_findings(
+        after_result.stdout
+    )
+
     return {
-        "passed":          passed,
-        "failed":          failed,
-        "exit_code":       after_result.returncode,
-        "coverage_before": coverage_before,
-        "coverage_after":  coverage_after,
-        "stdout":          after_result.stdout,
-        "stderr":          after_result.stderr,
+        "passed":                  passed,
+        "failed":                  failed,
+        "exit_code":               after_result.returncode,
+        "coverage_before":         coverage_before,
+        "coverage_after":          coverage_after,
+        "coverage_details": {
+            "before": coverage_before_details,
+            "after": coverage_after_details,
+        },
+        "potential_bug_findings":  potential_bug_findings,
+        "stdout":                  after_result.stdout,
+        "stderr":                  after_result.stderr,
     }
 
 
@@ -148,3 +198,55 @@ def _parse_coverage(stdout: str) -> float:
     """
     m = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%", stdout, re.MULTILINE)
     return float(m.group(1)) if m else 0.0
+
+def _parse_coverage_details(stdout: str) -> list[dict]:
+    """Parse pytest-cov term-missing output into per-file coverage details."""
+
+    details: list[dict] = []
+
+    lines = stdout.splitlines()
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not stripped:
+            continue
+
+        if stripped.startswith("Name"):
+            continue
+
+        if stripped.startswith("---"):
+            continue
+
+        if stripped.startswith("TOTAL"):
+            continue
+
+        # Expected format:
+        # sample_repo\src\cart.py   26   9   65%   11, 13, 29-34
+        match = re.match(
+            r"^(.*?)\s+(\d+)\s+(\d+)\s+(\d+)%\s*(.*)$",
+            stripped,
+        )
+
+        if not match:
+            continue
+
+        file_name = match.group(1).strip()
+        statements = int(match.group(2))
+        missing = int(match.group(3))
+        coverage = float(match.group(4))
+        missing_text = match.group(5).strip()
+
+        # Avoid accidentally parsing unrelated pytest output.
+        if not file_name.endswith(".py"):
+            continue
+
+        details.append({
+            "file": file_name,
+            "statements": statements,
+            "missing": missing,
+            "coverage": coverage,
+            "missing_lines": missing_text,
+        })
+
+    return details
