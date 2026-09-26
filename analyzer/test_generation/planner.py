@@ -105,8 +105,29 @@ def set_provider(provider: PlanProvider) -> None:
 
 
 def get_provider() -> PlanProvider:
-    """Return the active provider, falling back to :class:`DeterministicPlanner`."""
-    return _active_provider if _active_provider is not None else DeterministicPlanner()
+    """Return the active provider, falling back to :class:`DeterministicPlanner`.
+
+    Resolution order
+    ~~~~~~~~~~~~~~~~
+    1. Explicitly registered provider (via :func:`set_provider`).
+    2. Gemini provider — auto-configured when ``GEMINI_API_KEY`` is present in
+       the environment (see :mod:`analyzer.test_generation.gemini_provider`).
+    3. :class:`DeterministicPlanner` — always available, no API key required.
+    """
+    if _active_provider is not None:
+        return _active_provider
+
+    # Lazy Gemini auto-selection — import here to keep the module importable
+    # even when google-genai is not installed.
+    try:
+        from analyzer.test_generation.gemini_provider import make_provider  # noqa: PLC0415
+        gemini = make_provider()
+        if gemini is not None:
+            return gemini
+    except Exception:  # noqa: BLE001
+        pass  # SDK not installed or other import error — fall through
+
+    return DeterministicPlanner()
 
 
 # ---------------------------------------------------------------------------

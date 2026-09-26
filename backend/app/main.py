@@ -1,6 +1,13 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load variables from a local .env file when present.
+# Existing environment variables are never overwritten (override=False).
+# This is a no-op in production where the .env file is absent.
+load_dotenv(override=False)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
