@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from analyzer.code_analysis.repo_scanner import scan_repository, discover_files
 from analyzer.gap_detection.gap_detector import detect_gaps
 from analyzer.gap_detection.repo_gap_analyzer import analyze_repository_gaps
+from analyzer.test_generation.planner import generate_test_plan
 from analyzer.test_generation.test_generator import generate_tests, generate_test_module
 from analyzer.runner.test_runner import run_tests
 
@@ -86,6 +87,9 @@ def analyze(request: AnalyzeRequest):
         source_dirs=source_dirs if source_dirs else None,
     )
 
+    # Structured test plans from the generic planner (one entry per gap function)
+    test_plans = generate_test_plan(repo)
+
     return {
         "repository": repo,
         "status": "scanned",
@@ -97,4 +101,5 @@ def analyze(request: AnalyzeRequest):
         "gaps": gap_records,
         "generated_tests": generated_tests,
         "test_results": test_results,
+        "test_plans": test_plans,
     }
