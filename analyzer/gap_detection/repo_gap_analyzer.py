@@ -189,6 +189,29 @@ def _branch_is_covered(branch_info: dict, covering_tests: list[dict]) -> bool:
     return False
 
 
+def _branch_has_distinctive_literal(condition: str) -> bool:
+    """Return True when a branch contains a distinctive string literal.
+
+    String-based conditions such as:
+
+        coupon == "SAVE20"
+
+    give us stronger static evidence than conditions such as:
+
+        quantity <= 0
+        not items
+
+    because the test extractor can directly compare those string literals
+    against literals used by covering tests.
+    """
+
+    matches = re.findall(
+        r'"([^"]+)"|\'([^\']+)\'',
+        condition,
+    )
+
+    return any(a or b for a, b in matches)
+
 # ---------------------------------------------------------------------------
 # Confidence rating
 # ---------------------------------------------------------------------------
@@ -198,51 +221,86 @@ def _rate_confidence(
     covering_tests: list[dict],
     missing_branches: list[str],
     missing_exceptions: list[str],
-) -> tuple[str, str]:
-    """Return a ``(confidence, reason)`` pair for the gap record.
+) -> tuple[str, str, str]:
+    """Rate how strongly the static analysis supports the reported gap.
 
-    Confidence levels:
+    Returns:
 
-    high
-        The function is never called by any test — all paths are gaps.
-    medium
-        The function is called by at least one test but still has gaps;
-        the covering tests don't exercise every branch/raise.
-    low
-        Only branch conditions without distinctive literals were flagged;
-        the heuristic cannot confirm coverage so gaps are conservative.
+        (confidence, confidence_label, reason)
+
+    Levels:
+
+    high / definitely
+        No test calls the function at all. This is the strongest evidence
+        that its paths are currently untested.
+
+    medium / probably
+        Tests call the function, but an explicit exception path or a branch
+        containing a distinctive literal still appears uncovered.
+
+    low / uncertain
+        The remaining gaps are numeric, truthiness, or other conditions that
+        cannot be confirmed accurately from literals alone.
     """
+
+    # ---------------------------------------------------------------
+    # Strongest case: function is not called by any discovered test.
+    # ---------------------------------------------------------------
     if not covering_tests:
         return (
             "high",
-            "Function is not called by any test — all paths are untested.",
+            "definitely",
+            "No discovered test calls this function, so its execution paths "
+            "appear completely untested.",
         )
 
-    # Distinguish heuristic-only gaps (branch conditions with no string literals)
-    # from gaps confirmed by explicit exception/literal matching.
-    all_branches = func_meta["branches"]
-    heuristic_only = all(
-        not re.findall(r'"([^"]+)"|\'([^\']+)\'', b["condition"])
-        for b in all_branches
-        if f"branch: {b['condition']}" in missing_branches
-        or b["condition"] in missing_branches
-    )
-
-    if missing_exceptions or not heuristic_only:
+    # ---------------------------------------------------------------
+    # Explicit raise statements are stronger evidence than generic
+    # branch heuristics.
+    # ---------------------------------------------------------------
+    if missing_exceptions:
         return (
             "medium",
+            "probably",
             (
-                f"Function is covered by {len(covering_tests)} test(s) but "
-                "missing branches or exceptions were detected."
+                f"Function is called by {len(covering_tests)} test(s), but "
+                f"{len(missing_exceptions)} explicit exception path(s) appear "
+                "untested."
             ),
         )
 
+    # ---------------------------------------------------------------
+    # Branches containing distinctive string literals can be compared
+    # reasonably well against literals used by the covering tests.
+    # ---------------------------------------------------------------
+    distinctive_missing_branches = [
+        branch
+        for branch in missing_branches
+        if _branch_has_distinctive_literal(branch)
+    ]
+
+    if distinctive_missing_branches:
+        return (
+            "medium",
+            "probably",
+            (
+                f"Function is called by {len(covering_tests)} test(s), but "
+                f"{len(distinctive_missing_branches)} branch condition(s) "
+                "with distinctive values appear uncovered."
+            ),
+        )
+
+    # ---------------------------------------------------------------
+    # Numeric / truthiness / structural conditions are harder to infer
+    # reliably using static literal matching.
+    # ---------------------------------------------------------------
     return (
         "low",
+        "uncertain",
         (
-            "Branch gaps are based on heuristic matching only "
-            "(no distinctive string literals in conditions); "
-            "manual review recommended."
+            f"Function is called by {len(covering_tests)} test(s). "
+            "Remaining gaps are based on conservative branch heuristics, "
+            "so manual review is recommended."
         ),
     )
 
@@ -315,8 +373,11 @@ def analyze_repository_gaps(repo_path: str) -> list[dict[str, Any]]:
         if not missing_branches and not missing_exceptions:
             continue  # fully covered — nothing to report
 
-        confidence, reason = _rate_confidence(
-            func_meta, covering_tests, missing_branches, missing_exceptions
+        confidence, confidence_label, reason = _rate_confidence(
+            func_meta,
+            covering_tests,
+            missing_branches,
+            missing_exceptions,
         )
 
         gap_records.append({
@@ -333,6 +394,7 @@ def analyze_repository_gaps(repo_path: str) -> list[dict[str, Any]]:
             "missing_branches":   missing_branches,
             "missing_exceptions": missing_exceptions,
             "confidence":         confidence,
+            "confidence_label":   confidence_label,
             "reason":             reason,
         })
 
