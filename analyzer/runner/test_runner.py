@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+TEST_TIMEOUT_SECONDS = 30
+
 def _extract_potential_bug_findings(stdout: str) -> list[dict]:
     """Extract failing generated tests as potential bug findings."""
 
@@ -199,21 +201,59 @@ def _find_tests_dir(repo: Path, test_file_paths: list[str]) -> Path:
 
 
 def _pytest_with_cov(test_paths: list[str], cov_sources: list[str]):
-    """Run pytest with coverage over *cov_sources* for the given *test_paths*."""
+    """Run pytest with coverage and stop execution if it exceeds the timeout."""
+
     cov_args = []
+
     for src in cov_sources:
         cov_args += [f"--cov={src}"]
-    return subprocess.run(
-        [
-            sys.executable, "-m", "pytest",
-            *test_paths,
-            "-v", "--tb=short",
-            *cov_args,
-            "--cov-report=term-missing",
-        ],
-        capture_output=True,
-        text=True,
-    )
+
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        *test_paths,
+        "-v",
+        "--tb=short",
+        *cov_args,
+        "--cov-report=term-missing",
+    ]
+
+    try:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=TEST_TIMEOUT_SECONDS,
+        )
+
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+
+        # TimeoutExpired may return bytes on some Python/platform combinations.
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode(errors="replace")
+
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode(errors="replace")
+
+        timeout_message = (
+            f"Test execution exceeded {TEST_TIMEOUT_SECONDS} seconds "
+            "and was stopped."
+        )
+
+        if stderr:
+            stderr = f"{stderr}\n{timeout_message}"
+        else:
+            stderr = timeout_message
+
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=124,
+            stdout=stdout,
+            stderr=stderr,
+        )
 
 
 def _parse_count(stdout: str, word: str) -> int:

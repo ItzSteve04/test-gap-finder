@@ -21,6 +21,8 @@ from analyzer.test_generation.plan_driven_generator import (
     generate_test_module_from_plans,
 )
 
+from analyzer.security.execution_policy import get_execution_policy
+
 from analyzer.test_generation.test_validator import validate_generated_tests
 
 from analyzer.code_analysis.repository_loader import resolve_repository
@@ -33,7 +35,7 @@ app = FastAPI(title="Test Gap Finder API")
 
 app.add_middleware(
     CORSMiddleware,
-      allow_origins=["http://localhost:4200"],
+    allow_origins=["http://localhost:4200"],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
@@ -57,6 +59,7 @@ def _analyze_repository(repo: str, *, execution_allowed: bool, source_type: str)
         raise HTTPException(status_code=400, detail=f"Repository path not found: {repo}")
 
     # Structural metrics (counts only)
+    policy = get_execution_policy(source_type)
     scan = scan_repository(repo)
     discovered = discover_files(repo)
 
@@ -127,7 +130,7 @@ def _analyze_repository(repo: str, *, execution_allowed: bool, source_type: str)
             "collection_success": validation["collection"]["success"],
         }
 
-        execution_mode = "trusted_local"
+        execution_mode = policy["mode"]
 
     # ---------------------------------------------------------------
     # Untrusted cloned repository
@@ -165,12 +168,13 @@ def _analyze_repository(repo: str, *, execution_allowed: bool, source_type: str)
             "execution_skipped": True,
         }
 
-        execution_mode = "static_only"
+        execution_mode = policy["mode"]
 
     return {
         **scan,
         "source_type": source_type,
         "execution_mode": execution_mode,
+        "safety": policy,
         "source_files": source_files,
         "test_files_discovered": test_files,
         "gaps": gap_records,
@@ -187,9 +191,11 @@ def _analyze_repository(repo: str, *, execution_allowed: bool, source_type: str)
 def analyze(request: AnalyzeRequest):
     try:
         with resolve_repository(request.repository_url) as repository:
+            policy = get_execution_policy(repository["source_type"])
+
             return _analyze_repository(
                 repository["repo_path"],
-                execution_allowed=repository["execution_allowed"],
+                execution_allowed=policy["execution_allowed"],
                 source_type=repository["source_type"],
             )
 
