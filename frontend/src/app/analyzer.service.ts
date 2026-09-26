@@ -12,14 +12,32 @@ export interface TestResults {
   stderr: string;
 }
 
+export interface GapRecord {
+  function: string;
+  qualified_name: string;
+  source_file: string;
+  covering_tests: string[];
+  missing_branches: string[];
+  missing_exceptions: string[];
+  confidence: string;
+  confidence_label: string;
+  reason: string;
+}
+
+export interface GeneratedTest {
+  function: string;
+  gap: string;
+  code: string;
+}
+
 export interface AnalyzeResponse {
   repository: string;
   status: string;
   python_files: number;
   test_files: number;
   has_tests_folder: boolean;
-  gaps: string[];
-  generated_tests: string[];
+  gaps: GapRecord[];
+  generated_tests: GeneratedTest[];
   test_results: TestResults;
 }
 

@@ -1,3 +1,5 @@
+pytest>=8.0.0
+pytest-cov>=5.0.0
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
