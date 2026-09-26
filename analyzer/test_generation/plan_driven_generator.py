@@ -134,24 +134,38 @@ def _generic_call_template(func_name: str, gap_ref: str, call_expr: str) -> str:
 # Call-expression extraction and argument healing
 # ---------------------------------------------------------------------------
 
-def _extract_call_expr(inputs: str) -> str | None:
+def _extract_call_expr(inputs: str, func_name: str | None = None) -> str | None:
     """Extract a Python call expression from the plan *inputs* field.
 
-    Accepts the natural-language patterns produced by the DeterministicPlanner:
-    ``"func_name(arg=<hint>, ...)"``
-    Returns None when the inputs field doesn't contain a recognisable call.
+    Accepts two formats:
+
+    1. DeterministicPlanner style: ``"func_name(arg=<hint>, ...)"``
+    2. Gemini prose style: ``"arg1 = val1, arg2 = val2"`` (no enclosing call).
+       When *func_name* is supplied it is used to reconstruct the call.
+
+    Returns None when no recognisable call can be built.
     """
-    m = _CALL_RE.match(inputs.strip())
-    if not m:
-        return None
-    func = m.group("func")
-    raw_args = m.group("args").strip()
+    stripped = inputs.strip()
 
-    cleaned_args = _replace_placeholders(raw_args)
+    # --- Format 1: already a full call expression ---
+    m = _CALL_RE.match(stripped)
+    if m:
+        func = m.group("func")
+        raw_args = m.group("args").strip()
+        cleaned_args = _replace_placeholders(raw_args)
+        candidate = f"{func}({cleaned_args})"
+        if _valid_python(candidate):
+            return candidate
 
-    candidate = f"{func}({cleaned_args})"
-    if _valid_python(candidate):
-        return candidate
+    # --- Format 2: prose "arg = val, arg2 = val2" (Gemini style) ---
+    if func_name:
+        # Strip a leading "func_name(" if Gemini partially wrapped it
+        prose = re.sub(r'^\w+\s*\(', '', stripped).rstrip(')')
+        cleaned = _replace_placeholders(prose)
+        candidate = f"{func_name}({cleaned})"
+        if _valid_python(candidate):
+            return candidate
+
     return None
 
 
@@ -371,11 +385,10 @@ def _convert_plan(
         # use a concrete violation value instead of None.
         call_expr = _try_heal_exception_call(inputs, message, gap_ref, prompt_payload)
         if call_expr is None:
-            # Healing failed — the condition variable is not a direct function
-            # argument (e.g. it's an attribute of a nested dict).  Falling
-            # back to None placeholders would likely trigger a different code
-            # path and a different exception, so we cannot safely generate
-            # this test.
+            # Healing via condition matching failed — fall back to extracting
+            # the call directly from the inputs field (handles Gemini prose style).
+            call_expr = _extract_call_expr(inputs, func_name)
+        if call_expr is None:
             return None
 
         code = _raises_template(func_name, gap_ref, call_expr, exc_type, message)
@@ -391,7 +404,7 @@ def _convert_plan(
         # expected result).
         call_expr = _try_heal_branch_call(inputs, gap_ref, prompt_payload)
         if call_expr is None:
-            call_expr = _extract_call_expr(inputs)
+            call_expr = _extract_call_expr(inputs, func_name)
         if call_expr is None:
             return None
         code = _generic_call_template(func_name, gap_ref, call_expr)

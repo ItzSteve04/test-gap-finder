@@ -213,4 +213,5 @@ def make_provider() -> GeminiPlanner | None:
     if not api_key:
         return None
     model = os.environ.get("GEMINI_MODEL", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
+    logger.info("Using GeminiPlanner (model=%s)", model)
     return GeminiPlanner(api_key=api_key, model=model)
