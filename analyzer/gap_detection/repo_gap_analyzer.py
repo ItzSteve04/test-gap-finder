@@ -44,20 +44,91 @@ from analyzer.code_analysis.test_extractor import extract_repository_tests
 # ---------------------------------------------------------------------------
 
 def _function_is_called_by_test(func_name: str, test_meta: dict) -> bool:
-    """Return True if *test_meta* contains a direct call to *func_name*.
+    """Return True when a test appears to call *func_name*.
 
-    A test is considered to cover a function when the function's plain name
-    appears in the test's ``calls`` list.  Method-call forms like
-    ``obj.func_name`` are also matched so that wrapper patterns are captured.
+    Supports:
+
+    - direct calls:
+        calculate_discount(...)
+
+    - dotted calls:
+        cart.calculate_discount(...)
+
+    - directly imported aliases:
+        from module import calculate_discount as calc
+        calc(...)
+
+    - module aliases:
+        import module as cart
+        cart.calculate_discount(...)
+
+    The matching remains intentionally conservative. It uses import and call
+    metadata from the test extractor rather than attempting full Python name
+    resolution.
     """
-    for call in test_meta["calls"]:
-        callee: str = call["func"]
-        # Direct call: "func_name"
+
+    aliases: dict[str, str] = test_meta.get("aliases", {})
+
+    for call in test_meta.get("calls", []):
+        callee = str(call.get("func", "")).strip()
+
+        if not callee:
+            continue
+
+        # ---------------------------------------------------------------
+        # 1. Direct call:
+        # calculate_discount(...)
+        # ---------------------------------------------------------------
         if callee == func_name:
             return True
-        # Attribute call: "something.func_name"
+
+        # ---------------------------------------------------------------
+        # 2. Dotted call:
+        # cart.calculate_discount(...)
+        # service.calculate_discount(...)
+        # ---------------------------------------------------------------
         if callee.endswith(f".{func_name}"):
             return True
+
+        # ---------------------------------------------------------------
+        # 3. Direct alias:
+        #
+        # from module import calculate_discount as calc
+        # calc(...)
+        #
+        # aliases:
+        # {"calc": "calculate_discount"}
+        # ---------------------------------------------------------------
+        if "." not in callee:
+            resolved = aliases.get(callee)
+
+            if resolved == func_name:
+                return True
+
+            if isinstance(resolved, str) and resolved.endswith(f".{func_name}"):
+                return True
+
+        # ---------------------------------------------------------------
+        # 4. Module alias:
+        #
+        # import some.module as cart
+        # cart.calculate_discount(...)
+        # ---------------------------------------------------------------
+        if "." in callee:
+            parts = callee.split(".")
+            root = parts[0]
+            remainder = parts[1:]
+
+            resolved_root = aliases.get(root)
+
+            if resolved_root and remainder:
+                resolved_call = ".".join(
+                    [resolved_root, *remainder]
+                )
+
+                if resolved_call.endswith(f".{func_name}"):
+                    return True
+
     return False
 
 

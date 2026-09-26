@@ -196,6 +196,66 @@ def _extract_literals(func: ast.FunctionDef) -> list[str | int | float]:
     return results
 
 
+def _extract_import_metadata(tree: ast.Module) -> tuple[list[str], dict[str, str]]:
+    """Extract imported modules/names and aliases from a test module.
+
+    Examples:
+
+        import sample_repo.src.cart as cart
+
+    becomes:
+
+        imports = ["sample_repo.src.cart"]
+        aliases = {"cart": "sample_repo.src.cart"}
+
+    And:
+
+        from sample_repo.src.cart import calculate_discount as calc
+
+    becomes:
+
+        imports = ["sample_repo.src.cart.calculate_discount"]
+        aliases = {"calc": "calculate_discount"}
+
+    Imports are module-level metadata and are attached to each test function
+    extracted from the file.
+    """
+
+    imports: list[str] = []
+    aliases: dict[str, str] = {}
+
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for item in node.names:
+                imports.append(item.name)
+
+                if item.asname:
+                    aliases[item.asname] = item.name
+                else:
+                    # import package.module
+                    # The directly usable name in Python is the first segment.
+                    root_name = item.name.split(".")[0]
+                    aliases.setdefault(root_name, root_name)
+
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+
+            for item in node.names:
+                if item.name == "*":
+                    imports.append(f"{module}.*" if module else "*")
+                    continue
+
+                full_name = f"{module}.{item.name}" if module else item.name
+                imports.append(full_name)
+
+                local_name = item.asname or item.name
+
+                # For `from x import function as alias`, keeping the imported
+                # symbol name makes alias resolution straightforward.
+                aliases[local_name] = item.name
+
+    return imports, aliases
+
 # ---------------------------------------------------------------------------
 # Per-file extraction
 # ---------------------------------------------------------------------------
@@ -222,6 +282,9 @@ def extract_tests(test_file: str) -> list[dict]:
     """
     abs_path = os.path.abspath(test_file)
     tree = _parse_file(abs_path)
+
+    imports, aliases = _extract_import_metadata(tree)
+
     results = []
     for func in _top_level_test_functions(tree):
         results.append({
@@ -231,6 +294,8 @@ def extract_tests(test_file: str) -> list[dict]:
             "assertions":          _extract_assertions(func),
             "expected_exceptions": _extract_expected_exceptions(func),
             "literals":            _extract_literals(func),
+            "imports":             imports,
+            "aliases":             aliases,
         })
     return results
 
