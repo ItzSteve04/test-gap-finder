@@ -49,6 +49,40 @@ def _extract_potential_bug_findings(stdout: str) -> list[dict]:
     return findings
 
 
+def measure_coverage_before(
+    repo_path: str,
+    test_files: list[str] | None = None,
+    source_dirs: list[str] | None = None,
+) -> float:
+    """Run only the original test suite and return the coverage percentage.
+
+    This is a lightweight version of :func:`run_tests` that only performs
+    Pass 1 (before-coverage), without writing any temporary files.
+
+    Args:
+        repo_path:   Root of the repository.
+        test_files:  Existing test files; falls back to ``<repo>/tests/test_cart.py``.
+        source_dirs: Coverage sources; falls back to ``<repo>/src``.
+
+    Returns:
+        Coverage percentage as a float (e.g. ``65.0``).
+    """
+    repo = Path(repo_path)
+
+    if test_files is not None:
+        original_tests = [str(p) for p in test_files]
+    else:
+        original_tests = [str(repo / "tests" / "test_cart.py")]
+
+    if source_dirs is not None:
+        cov_sources = [str(p) for p in source_dirs]
+    else:
+        cov_sources = [str(repo / "src")]
+
+    result = _pytest_with_cov(original_tests, cov_sources)
+    return _parse_coverage(result.stdout)
+
+
 def run_tests(module_text: str, repo_path: str,
               test_files: list[str] | None = None,
               source_dirs: list[str] | None = None) -> dict:

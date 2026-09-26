@@ -93,8 +93,26 @@
           <p class="empty-note">No gaps detected.</p>
         } @else {
           <ul class="item-list">
-            @for (gap of r.gaps; track gap) {
-              <li>{{ gap }}</li>
+            @for (gap of r.gaps; track gap.function) {
+              <li>
+                <strong>{{ gap.function }}</strong>
+                <span class="confidence-badge confidence-{{ gap.confidence }}">{{ gap.confidence }}</span>
+                <span class="gap-reason">{{ gap.reason }}</span>
+                @if (gap.missing_branches.length > 0) {
+                  <ul class="sub-list">
+                    @for (branch of gap.missing_branches; track branch) {
+                      <li>Branch: <code>{{ branch }}</code></li>
+                    }
+                  </ul>
+                }
+                @if (gap.missing_exceptions.length > 0) {
+                  <ul class="sub-list">
+                    @for (exc of gap.missing_exceptions; track exc) {
+                      <li>Exception: <code>{{ exc }}</code></li>
+                    }
+                  </ul>
+                }
+              </li>
             }
           </ul>
         }
@@ -107,8 +125,11 @@
           <p class="empty-note">No tests were generated.</p>
         } @else {
           <ul class="item-list">
-            @for (test of r.generated_tests; track test) {
-              <li>{{ test }}</li>
+            @for (test of r.generated_tests; track test.function + test.gap) {
+              <li>
+                <strong>{{ test.function }}</strong> — {{ test.gap }}
+                <pre class="code-block">{{ test.code }}</pre>
+              </li>
             }
           </ul>
         }

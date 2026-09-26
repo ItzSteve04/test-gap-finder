@@ -1,7 +1,7 @@
 import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { AnalyzerService, AnalyzeResponse } from './analyzer.service';
+import { AnalyzerService, AnalyzeResponse, GapRecord, GeneratedTest } from './analyzer.service';
 
 @Component({
   selector: 'app-root',

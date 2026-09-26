@@ -24,7 +24,7 @@ from analyzer.test_generation.test_validator import validate_generated_tests
 
 # Legacy generator kept available for fallback (not used by the main flow).
 from analyzer.test_generation.test_generator import generate_tests_legacy  # noqa: F401
-from analyzer.runner.test_runner import run_tests
+from analyzer.runner.test_runner import run_tests, measure_coverage_before
 
 app = FastAPI(title="Test Gap Finder API")
 
@@ -90,6 +90,13 @@ def analyze(request: AnalyzeRequest):
     # Only validated tests are allowed to reach the runner.
     validated_module_text = validation["validated_module_text"]
 
+    # Always measure the baseline coverage from the existing test suite.
+    coverage_before = measure_coverage_before(
+        repo,
+        test_files=test_files if test_files else None,
+        source_dirs=source_dirs if source_dirs else None,
+    )
+
     if validation["valid_tests"]:
         test_results = run_tests(
             validated_module_text,
@@ -102,8 +109,8 @@ def analyze(request: AnalyzeRequest):
             "passed": 0,
             "failed": 0,
             "exit_code": 1,
-            "coverage_before": 0.0,
-            "coverage_after": 0.0,
+            "coverage_before": coverage_before,
+            "coverage_after": coverage_before,
             "coverage_details": {
                 "before": [],
                 "after": [],
