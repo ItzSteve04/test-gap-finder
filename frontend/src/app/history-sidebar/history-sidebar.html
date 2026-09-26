@@ -1,0 +1,123 @@
+<!-- ─── Header ────────────────────────────────────────────────── -->
+<div class="sidebar-header">
+  <span class="sidebar-title">History</span>
+  <button
+    mat-icon-button
+    class="new-btn"
+    (click)="newAnalysis.emit()"
+    aria-label="New analysis"
+    matTooltip="New analysis"
+  >
+    <mat-icon>edit_square</mat-icon>
+  </button>
+</div>
+
+<!-- ─── Search ────────────────────────────────────────────────── -->
+<div class="search-row">
+  <mat-icon class="search-icon">search</mat-icon>
+  <input
+    class="search-input"
+    type="text"
+    placeholder="Search history…"
+    (input)="onSearchInput($event)"
+    aria-label="Search analyses"
+  />
+</div>
+
+<!-- ─── Loading skeleton ──────────────────────────────────────── -->
+@if (loading()) {
+  <div class="skeleton-list">
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row short"></div>
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row short"></div>
+  </div>
+} @else if (items().length === 0) {
+
+  <!-- ─── Empty state ───────────────────────────────────────────── -->
+  <div class="empty-state">
+    <mat-icon class="empty-icon">history</mat-icon>
+    <p>No analyses yet — run one to see it here.</p>
+  </div>
+
+} @else {
+
+  <!-- ─── Grouped list ──────────────────────────────────────────── -->
+  @for (bucket of buckets(); track bucket.label) {
+    <p class="bucket-label">{{ bucket.label }}</p>
+
+    @for (item of bucket.items; track item.id) {
+      <div
+        class="history-row"
+        [class.selected]="item.id === activeId()"
+        [class.running]="item.status === 'running'"
+        [class.failed]="item.status === 'failed'"
+        (click)="onRowClick(item.id)"
+        [attr.aria-current]="item.id === activeId() ? 'true' : null"
+      >
+        <!-- Leading status indicator -->
+        <div class="row-status">
+          @if (item.status === 'running') {
+            <mat-spinner diameter="14" class="row-spinner" />
+          } @else if (item.status === 'failed') {
+            <mat-icon class="status-icon failed-icon">error_outline</mat-icon>
+          }
+        </div>
+
+        <!-- Title / rename input -->
+        <div class="row-body">
+          @if (editingId() === item.id) {
+            <input
+              class="rename-input"
+              [value]="editingTitle()"
+              (input)="editingTitle.set($any($event.target).value)"
+              (blur)="commitRename(item.id)"
+              (keydown)="onRenameKeydown($event, item.id)"
+              autofocus
+              (click)="$event.stopPropagation()"
+              aria-label="Rename analysis"
+            />
+          } @else {
+            <span class="row-title" [title]="item.title">{{ item.title }}</span>
+            <span class="row-sub" [title]="item.repository">
+              {{ item.repository }}
+              @if (item.status === 'completed' && item.coverage_before !== null && item.coverage_after !== null) {
+                <span class="coverage-chip">
+                  <span class="cov-before">{{ item.coverage_before | number:'1.0-0' }}%</span>
+                  <mat-icon class="cov-arrow">arrow_forward</mat-icon>
+                  <span class="cov-after">{{ item.coverage_after | number:'1.0-0' }}%</span>
+                </span>
+              }
+              @if (item.status === 'failed') {
+                <span class="failed-label" [title]="item.error_message ?? ''">Failed</span>
+              }
+            </span>
+          }
+        </div>
+
+        <!-- Kebab menu -->
+        @if (item.status !== 'running') {
+          <button
+            mat-icon-button
+            class="kebab-btn"
+            [matMenuTriggerFor]="rowMenu"
+            (click)="$event.stopPropagation()"
+            aria-label="More options"
+          >
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #rowMenu="matMenu">
+            <button mat-menu-item (click)="startRename(item, $event)">
+              <mat-icon>edit</mat-icon>
+              <span>Rename</span>
+            </button>
+            <button mat-menu-item (click)="onDeleteClick(item.id, $event)">
+              <mat-icon>delete_outline</mat-icon>
+              <span>Delete</span>
+            </button>
+          </mat-menu>
+        }
+      </div>
+    }
+  }
+}

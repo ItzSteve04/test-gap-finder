@@ -1,3 +1,21 @@
+/* ─── App shell (sidenav container) ─────────────────────────── */
+
+.shell {
+  height: 100vh;
+  width: 100%;
+}
+
+/* ─── History drawer ─────────────────────────────────────────── */
+
+.history-drawer {
+  width: 280px;
+  background: var(--mat-sys-surface-container-low) !important;
+  border-right: 1px solid var(--mat-sys-outline-variant);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ─── Toolbar ─────────────────────────────────────────────────── */
 
 .app-toolbar {
@@ -307,5 +325,11 @@
 
   .stat-card-repo {
     grid-column: span 1;
+  }
+
+  /* Sidenav switches to overlay on mobile */
+  .history-drawer {
+    width: 85vw;
+    max-width: 320px;
   }
 }

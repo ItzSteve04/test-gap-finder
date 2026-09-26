@@ -31,6 +31,9 @@ export interface GeneratedTest {
 }
 
 export interface AnalyzeResponse {
+  id: string;
+  title: string;
+  created_at: string;
   repository: string;
   status: string;
   python_files: number;

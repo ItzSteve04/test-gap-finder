@@ -268,3 +268,6 @@ cloned_repos/
 
 # Local test output
 test-results/
+
+# History database (SQLite, persists on disk - not tracked in git)
+backend/data/

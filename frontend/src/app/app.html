@@ -1,173 +1,207 @@
-<!-- ─── Toolbar ──────────────────────────────────────────────── -->
-<mat-toolbar class="app-toolbar">
-  <mat-icon class="toolbar-icon">science</mat-icon>
-  <span class="toolbar-title">Test Gap Finder</span>
-  <span class="toolbar-subtitle">Scan your repository to detect untested code and generate missing tests.</span>
-</mat-toolbar>
+<mat-sidenav-container class="shell">
 
-<!-- ─── Page body ─────────────────────────────────────────────── -->
-<div class="page">
+  <!-- ─── History sidebar ──────────────────────────────────────── -->
+  <mat-sidenav
+    #historyDrawer
+    class="history-drawer"
+    [mode]="isMobile() ? 'over' : 'side'"
+    [opened]="!isMobile()"
+  >
+    <app-history-sidebar
+      [items]="historyItems()"
+      [activeId]="activeId()"
+      [loading]="historyLoading()"
+      (search)="onHistorySearch($event)"
+      (select)="onSelectHistoryItem($event)"
+      (rename)="onRenameHistoryItem($event)"
+      (delete)="onDeleteHistoryItem($event)"
+      (newAnalysis)="onNewAnalysis()"
+    />
+  </mat-sidenav>
 
-  <section class="input-section">
-    <form (ngSubmit)="analyze()" class="input-form">
-      <mat-form-field appearance="outline" class="repo-field">
-        <mat-label>Repository path</mat-label>
-        <input
-          matInput
-          [(ngModel)]="repoPath"
-          name="repoPath"
-          [disabled]="!!loading()"
-          autocomplete="off"
-          placeholder="e.g. sample_repo"
-        />
-      </mat-form-field>
-      <button
-        mat-flat-button
-        type="submit"
-        class="analyze-btn"
-        [disabled]="!!loading() || !repoPath.trim()"
-      >
-        @if (loading()) {
-          <mat-spinner diameter="18" />
-          Analyzing…
-        } @else {
-          <mat-icon>search</mat-icon> Analyze
-        }
-      </button>
-    </form>
-  </section>
+  <!-- ─── Main content ─────────────────────────────────────────── -->
+  <mat-sidenav-content>
 
-  @if (result(); as r) {
-    <section class="results">
-
-      <!-- Coverage hero -->
-      @if (r.test_results) {
-        <mat-card appearance="outlined" class="coverage-hero">
-          <mat-card-content class="coverage-row">
-            <div class="coverage-block">
-              <span class="coverage-label">Before</span>
-              <span class="coverage-value before">{{ r.test_results.coverage_before }}%</span>
-            </div>
-            <mat-icon class="coverage-arrow">arrow_forward</mat-icon>
-            <div class="coverage-block">
-              <span class="coverage-label">After</span>
-              <span class="coverage-value after">{{ r.test_results.coverage_after }}%</span>
-            </div>
-            <mat-chip-set>
-              <mat-chip color="primary" highlighted>
-                +{{ r.test_results.coverage_after - r.test_results.coverage_before }}%
-              </mat-chip>
-            </mat-chip-set>
-          </mat-card-content>
-          <mat-progress-bar mode="determinate" [value]="r.test_results.coverage_after" />
-        </mat-card>
+    <!-- ─── Toolbar ──────────────────────────────────────────────── -->
+    <mat-toolbar class="app-toolbar">
+      @if (isMobile()) {
+        <button mat-icon-button (click)="historyDrawer.toggle()" aria-label="Toggle history">
+          <mat-icon>menu</mat-icon>
+        </button>
       }
+      <mat-icon class="toolbar-icon">science</mat-icon>
+      <span class="toolbar-title">Test Gap Finder</span>
+      <span class="toolbar-subtitle">Scan your repository to detect untested code and generate missing tests.</span>
+    </mat-toolbar>
 
-      <!-- Summary cards -->
-      <div class="stats-grid">
-        <mat-card appearance="outlined" class="stat-card-repo">
-          <mat-card-content>
-            <span class="stat-label">Repository</span>
-            <span class="stat-value stat-value-path" [title]="r.repository">{{ r.repository }}</span>
-          </mat-card-content>
-        </mat-card>
-        <mat-card appearance="outlined">
-          <mat-card-content>
-            <span class="stat-label">Status</span>
-            <mat-chip-set>
-              <mat-chip color="primary" highlighted>{{ r.status }}</mat-chip>
-            </mat-chip-set>
-          </mat-card-content>
-        </mat-card>
-        <mat-card appearance="outlined">
-          <mat-card-content>
-            <span class="stat-label">Python Files</span>
-            <span class="stat-value">{{ r.python_files }}</span>
-          </mat-card-content>
-        </mat-card>
-        <mat-card appearance="outlined">
-          <mat-card-content>
-            <span class="stat-label">Test Files</span>
-            <span class="stat-value">{{ r.test_files }}</span>
-          </mat-card-content>
-        </mat-card>
-        @if (r.test_results) {
-          <mat-card appearance="outlined" class="stat-pass">
-            <mat-card-content>
-              <span class="stat-label">Tests Passed</span>
-              <span class="stat-value">{{ r.test_results.passed }}</span>
-            </mat-card-content>
-          </mat-card>
-          <mat-card appearance="outlined" class="stat-fail">
-            <mat-card-content>
-              <span class="stat-label">Tests Failed</span>
-              <span class="stat-value">{{ r.test_results.failed }}</span>
-            </mat-card-content>
-          </mat-card>
-        }
-      </div>
+    <!-- ─── Page body ────────────────────────────────────────────── -->
+    <div class="page">
 
-      <!-- Detected gaps -->
-      <div class="list-section">
-        <h2>Detected Gaps <mat-chip-set><mat-chip>{{ r.gaps.length }}</mat-chip></mat-chip-set></h2>
-        @if (r.gaps.length === 0) {
-          <p class="empty-note">No gaps detected.</p>
-        } @else {
-          <mat-accordion multi>
-            @for (gap of r.gaps; track gap.function) {
-              <mat-expansion-panel>
-                <mat-expansion-panel-header>
-                  <mat-panel-title class="gap-title">
-                    <code>{{ gap.function }}</code>
-                    <mat-chip-set>
-                      <mat-chip class="confidence-{{ gap.confidence }}">{{ gap.confidence }}</mat-chip>
-                    </mat-chip-set>
-                  </mat-panel-title>
-                  <mat-panel-description>{{ gap.reason }}</mat-panel-description>
-                </mat-expansion-panel-header>
-
-                @if (gap.missing_branches.length > 0) {
-                  <p class="sub-heading">Missing branches</p>
-                  <ul class="sub-list">
-                    @for (branch of gap.missing_branches; track branch) {
-                      <li><code>{{ branch }}</code></li>
-                    }
-                  </ul>
-                }
-                @if (gap.missing_exceptions.length > 0) {
-                  <p class="sub-heading">Missing exceptions</p>
-                  <ul class="sub-list">
-                    @for (exc of gap.missing_exceptions; track exc) {
-                      <li><code>{{ exc }}</code></li>
-                    }
-                  </ul>
-                }
-              </mat-expansion-panel>
+      <section class="input-section">
+        <form (ngSubmit)="analyze()" class="input-form">
+          <mat-form-field appearance="outline" class="repo-field">
+            <mat-label>Repository path</mat-label>
+            <input
+              matInput
+              [(ngModel)]="repoPath"
+              name="repoPath"
+              [disabled]="!!loading()"
+              autocomplete="off"
+              placeholder="e.g. sample_repo"
+            />
+          </mat-form-field>
+          <button
+            mat-flat-button
+            type="submit"
+            class="analyze-btn"
+            [disabled]="!!loading() || !repoPath.trim()"
+          >
+            @if (loading()) {
+              <mat-spinner diameter="18" />
+              Analyzing…
+            } @else {
+              <ng-container>
+                <mat-icon>search</mat-icon> Analyze
+              </ng-container>
             }
-          </mat-accordion>
-        }
-      </div>
+          </button>
+        </form>
+      </section>
 
-      <!-- Generated tests -->
-      <div class="list-section">
-        <h2>Generated Tests <mat-chip-set><mat-chip>{{ r.generated_tests.length }}</mat-chip></mat-chip-set></h2>
-        @if (r.generated_tests.length === 0) {
-          <p class="empty-note">No tests were generated.</p>
-        } @else {
-          <mat-accordion multi>
-            @for (test of r.generated_tests; track test.function + test.gap) {
-              <mat-expansion-panel>
-                <mat-expansion-panel-header>
-                  <mat-panel-title><code>{{ test.function }}</code></mat-panel-title>
-                  <mat-panel-description>{{ test.gap }}</mat-panel-description>
-                </mat-expansion-panel-header>
-                <pre class="code-block">{{ test.code }}</pre>
-              </mat-expansion-panel>
+      @if (result(); as r) {
+        <section class="results">
+
+          <!-- Coverage hero -->
+          @if (r.test_results) {
+            <mat-card appearance="outlined" class="coverage-hero">
+              <mat-card-content class="coverage-row">
+                <div class="coverage-block">
+                  <span class="coverage-label">Before</span>
+                  <span class="coverage-value before">{{ r.test_results.coverage_before }}%</span>
+                </div>
+                <mat-icon class="coverage-arrow">arrow_forward</mat-icon>
+                <div class="coverage-block">
+                  <span class="coverage-label">After</span>
+                  <span class="coverage-value after">{{ r.test_results.coverage_after }}%</span>
+                </div>
+                <mat-chip-set>
+                  <mat-chip color="primary" highlighted>
+                    +{{ r.test_results.coverage_after - r.test_results.coverage_before }}%
+                  </mat-chip>
+                </mat-chip-set>
+              </mat-card-content>
+              <mat-progress-bar mode="determinate" [value]="r.test_results.coverage_after" />
+            </mat-card>
+          }
+
+          <!-- Summary cards -->
+          <div class="stats-grid">
+            <mat-card appearance="outlined" class="stat-card-repo">
+              <mat-card-content>
+                <span class="stat-label">Repository</span>
+                <span class="stat-value stat-value-path" [title]="r.repository">{{ r.repository }}</span>
+              </mat-card-content>
+            </mat-card>
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <span class="stat-label">Status</span>
+                <mat-chip-set>
+                  <mat-chip color="primary" highlighted>{{ r.status }}</mat-chip>
+                </mat-chip-set>
+              </mat-card-content>
+            </mat-card>
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <span class="stat-label">Python Files</span>
+                <span class="stat-value">{{ r.python_files }}</span>
+              </mat-card-content>
+            </mat-card>
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <span class="stat-label">Test Files</span>
+                <span class="stat-value">{{ r.test_files }}</span>
+              </mat-card-content>
+            </mat-card>
+            @if (r.test_results) {
+              <mat-card appearance="outlined" class="stat-pass">
+                <mat-card-content>
+                  <span class="stat-label">Tests Passed</span>
+                  <span class="stat-value">{{ r.test_results.passed }}</span>
+                </mat-card-content>
+              </mat-card>
+              <mat-card appearance="outlined" class="stat-fail">
+                <mat-card-content>
+                  <span class="stat-label">Tests Failed</span>
+                  <span class="stat-value">{{ r.test_results.failed }}</span>
+                </mat-card-content>
+              </mat-card>
             }
-          </mat-accordion>
-        }
-      </div>
+          </div>
 
-    </section>
-  }
-</div>
+          <!-- Detected gaps -->
+          <div class="list-section">
+            <h2>Detected Gaps <mat-chip-set><mat-chip>{{ r.gaps.length }}</mat-chip></mat-chip-set></h2>
+            @if (r.gaps.length === 0) {
+              <p class="empty-note">No gaps detected.</p>
+            } @else {
+              <mat-accordion multi>
+                @for (gap of r.gaps; track gap.function) {
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header>
+                      <mat-panel-title class="gap-title">
+                        <code>{{ gap.function }}</code>
+                        <mat-chip-set>
+                          <mat-chip class="confidence-{{ gap.confidence }}">{{ gap.confidence }}</mat-chip>
+                        </mat-chip-set>
+                      </mat-panel-title>
+                      <mat-panel-description>{{ gap.reason }}</mat-panel-description>
+                    </mat-expansion-panel-header>
+
+                    @if (gap.missing_branches.length > 0) {
+                      <p class="sub-heading">Missing branches</p>
+                      <ul class="sub-list">
+                        @for (branch of gap.missing_branches; track branch) {
+                          <li><code>{{ branch }}</code></li>
+                        }
+                      </ul>
+                    }
+                    @if (gap.missing_exceptions.length > 0) {
+                      <p class="sub-heading">Missing exceptions</p>
+                      <ul class="sub-list">
+                        @for (exc of gap.missing_exceptions; track exc) {
+                          <li><code>{{ exc }}</code></li>
+                        }
+                      </ul>
+                    }
+                  </mat-expansion-panel>
+                }
+              </mat-accordion>
+            }
+          </div>
+
+          <!-- Generated tests -->
+          <div class="list-section">
+            <h2>Generated Tests <mat-chip-set><mat-chip>{{ r.generated_tests.length }}</mat-chip></mat-chip-set></h2>
+            @if (r.generated_tests.length === 0) {
+              <p class="empty-note">No tests were generated.</p>
+            } @else {
+              <mat-accordion multi>
+                @for (test of r.generated_tests; track test.function + test.gap) {
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header>
+                      <mat-panel-title><code>{{ test.function }}</code></mat-panel-title>
+                      <mat-panel-description>{{ test.gap }}</mat-panel-description>
+                    </mat-expansion-panel-header>
+                    <pre class="code-block">{{ test.code }}</pre>
+                  </mat-expansion-panel>
+                }
+              </mat-accordion>
+            }
+          </div>
+
+        </section>
+      }
+    </div>
+
+  </mat-sidenav-content>
+</mat-sidenav-container>
