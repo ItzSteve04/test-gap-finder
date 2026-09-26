@@ -1,8 +1,12 @@
+<!-- ─── Toolbar ──────────────────────────────────────────────── -->
+<mat-toolbar class="app-toolbar">
+  <mat-icon class="toolbar-icon">science</mat-icon>
+  <span class="toolbar-title">Test Gap Finder</span>
+  <span class="toolbar-subtitle">Scan your repository to detect untested code and generate missing tests.</span>
+</mat-toolbar>
+
+<!-- ─── Page body ─────────────────────────────────────────────── -->
 <div class="page">
-  <header class="header">
-    <h1>Test Gap Finder</h1>
-    <p class="subtitle">Scan your repository to detect untested code and generate missing tests.</p>
-  </header>
 
   <section class="input-section">
     <form (ngSubmit)="analyze()" class="input-form">
@@ -27,10 +31,7 @@
           <mat-spinner diameter="18" />
           Analyzing…
         } @else {
-          <ng-container>
-            <mat-icon>search</mat-icon>
-            Analyze
-          </ng-container>
+          <mat-icon>search</mat-icon> Analyze
         }
       </button>
     </form>
@@ -64,10 +65,10 @@
 
       <!-- Summary cards -->
       <div class="stats-grid">
-        <mat-card appearance="outlined">
+        <mat-card appearance="outlined" class="stat-card-repo">
           <mat-card-content>
             <span class="stat-label">Repository</span>
-            <span class="stat-value">{{ r.repository }}</span>
+            <span class="stat-value stat-value-path" [title]="r.repository">{{ r.repository }}</span>
           </mat-card-content>
         </mat-card>
         <mat-card appearance="outlined">
