@@ -10,6 +10,7 @@ export interface TestResults {
   coverage_after: number;
   stdout: string;
   stderr: string;
+  execution_skipped?: boolean;
 }
 
 export interface GapRecord {
