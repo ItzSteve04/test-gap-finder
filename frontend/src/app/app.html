@@ -71,12 +71,10 @@
           </button>
         </form>
       </section>
-
-      @if (result(); as r) {
-        <section class="results">
-
+        @if (result(); as r) {
+          <section class="results">
           <!-- Coverage hero -->
-          @if (r.test_results) {
+          @if (r.test_results && !r.test_results.execution_skipped) {
             <mat-card appearance="outlined" class="coverage-hero">
               <mat-card-content class="coverage-row">
                 <div class="coverage-block">
@@ -95,6 +93,15 @@
                 </mat-chip-set>
               </mat-card-content>
               <mat-progress-bar mode="determinate" [value]="r.test_results.coverage_after" />
+            </mat-card>
+          }
+
+          @if (r.test_results.execution_skipped) {
+            <mat-card appearance="outlined" class="coverage-hero">
+              <mat-card-content>
+                <strong>Static analysis only</strong>
+                <p>External repository code was not executed for safety.</p>
+              </mat-card-content>
             </mat-card>
           }
 
@@ -126,7 +133,7 @@
                 <span class="stat-value">{{ r.test_files }}</span>
               </mat-card-content>
             </mat-card>
-            @if (r.test_results) {
+            @if (r.test_results && !r.test_results.execution_skipped) {
               <mat-card appearance="outlined" class="stat-pass">
                 <mat-card-content>
                   <span class="stat-label">Tests Passed</span>
@@ -149,7 +156,7 @@
               <p class="empty-note">No gaps detected.</p>
             } @else {
               <mat-accordion multi>
-                @for (gap of r.gaps; track gap.function) {
+                @for (gap of r.gaps; track gap.qualified_name + gap.source_file) {
                   <mat-expansion-panel>
                     <mat-expansion-panel-header>
                       <mat-panel-title class="gap-title">
