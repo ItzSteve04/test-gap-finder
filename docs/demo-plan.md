@@ -1,189 +1,200 @@
-# Demo Plan
+# Test Gap Finder Demo Plan
 
-## Goal
+## Target Length
 
-Demonstrate how Test Gap Finder improves the developer testing workflow by automatically identifying missing tests, generating targeted pytest tests, running them, and showing measurable coverage improvement.
+Keep the final video below the hackathon maximum duration.
 
-The current demo uses the controlled `sample_repo` so the workflow is predictable and easy to explain.
+Aim for approximately:
 
-## Demo Flow
+    2 minutes 30 seconds to 2 minutes 50 seconds
 
-### 1. Introduce the problem
+Make sure at least 90 seconds show the application running.
 
-Developers often have test suites that appear healthy but still miss important branches, edge cases, and error-handling paths.
+---
 
-Finding these gaps manually can take time, especially in unfamiliar codebases.
+## Key Demo Metrics
 
-Test Gap Finder automates that process.
+Use the current verified local demo result:
 
-### 2. Show the sample repository
+    Python files:       2
+    Test files:         1
+    Detected gaps:      3
+    Existing tests:     4
+    Generated tests:    5
+    Passing tests:      9
+    Failed tests:       0
+    Coverage before:   65%
+    Coverage after:    92%
+    Improvement:       +27 percentage points
 
-The sample project contains:
+Do not use older demo numbers such as 96% coverage or 6 generated tests.
 
-- Python source code
-- an existing pytest test suite
-- intentionally missing test cases
-- branches and validation paths that are not currently tested
+---
 
-The existing tests all pass, but the test suite is incomplete.
+## Demo Repository
 
-### 3. Start analysis
+Use:
 
-The user provides the repository/path and starts the analysis.
+    sample_repo
 
-The frontend sends a request to:
+The main detected functions are:
 
-POST /analyze
+    calculate_discount
+    apply_coupon
+    checkout
 
-The backend then starts the full analysis workflow.
+---
 
-### 4. Scan the repository
+## Suggested Video Flow
 
-The repository scanner identifies basic project information such as:
+### 0:00 - 0:20 — Problem
 
-- number of Python files
-- number of existing test files
-- whether a tests folder exists
+Explain the problem briefly.
 
-Current sample result:
+Suggested narration:
 
-Python files: 2  
-Test files: 1  
-Tests folder: Yes
+"Passing tests do not necessarily mean an application is well tested. Important branches, exception paths, and edge cases can still be completely uncovered. Test Gap Finder analyzes an existing Python codebase and its tests to find those missing cases automatically."
 
-### 5. Detect missing tests
+---
 
-The gap detector analyzes the source code and existing tests.
+### 0:20 - 0:35 — Solution
 
-It identifies untested logic such as:
+Show the main Test Gap Finder interface.
 
-- untested error paths
-- missing validation cases
-- untested branches
-- missing boundary conditions
+Suggested narration:
 
-For the current sample repository, gaps are detected across functions such as:
+"Our solution scans a Python repository, identifies meaningful test gaps, generates targeted pytest tests, validates them, and measures the impact on test coverage."
 
-- calculate_discount
-- apply_coupon
-- checkout
+---
 
-### 6. Generate targeted tests
+### 0:35 - 1:30 — Local Repository Demo
 
-The detected gaps are passed to the test generator.
+Enter:
 
-The system generates unique pytest test suggestions for those missing scenarios.
+    sample_repo
 
-The current sample produces:
+Select:
 
-6 unique generated tests
+    Analyze
 
-Examples include tests for:
+Show:
 
-- negative values
-- invalid percentage ranges
-- specific branch conditions
-- empty input
-- invalid quantities
+- 2 Python files
+- 1 test file
+- 3 detected gaps
 
-### 7. Run the generated tests
+Expand some of the detected gaps.
 
-The generated tests are written to a temporary test module and executed with pytest.
+### `calculate_discount`
 
-The temporary file is removed after execution so the original repository is not permanently modified.
+Point out missing error cases such as:
 
-Current result:
+    price < 0
 
-Generated tests passed: 6  
-Generated tests failed: 0
+and invalid discount percentages.
 
-### 8. Show measurable impact
+### `apply_coupon`
 
-The runner measures test coverage before and after the generated tests are added.
+Point out missing values such as:
 
-Current sample result:
+    SAVE20
+    FREESHIP
 
-Coverage before: 65%  
-Coverage after: 96%
+### `checkout`
 
-This demonstrates a measurable improvement in test coverage from targeted test generation.
+Point out:
 
-### 9. Show final results
+    empty cart
+    invalid quantity
 
-The frontend should display:
+Explain that the system is analyzing both source code and existing tests rather than simply looking at raw line coverage.
 
-- repository information
-- detected test gaps
-- generated tests
-- pass/fail results
-- coverage before
-- coverage after
-- coverage improvement
+---
 
-The main visual result should make the improvement immediately obvious:
+### 1:30 - 2:00 — Generated Tests and Coverage
 
-65% → 96%
+Show the generated tests.
 
-## Current Technical Flow
+Then highlight:
 
-Repository  
-↓  
-Angular Frontend  
-↓  
-FastAPI Backend  
-↓  
-Repository Scanner  
-↓  
-Gap Detection  
-↓  
-Test Generation  
-↓  
-pytest Runner  
-↓  
-Coverage Measurement  
-↓  
-Results returned to Frontend
+    4 existing tests
+    5 generated tests
+    9 passing tests
+    0 failed tests
 
-## IBM Bob Usage
+Show coverage:
 
-IBM Bob has been used throughout development to help:
+    65% → 92%
 
-- create the initial FastAPI backend
-- build the repository scanner
-- improve repository scanning and ignore generated folders
-- create the test gap detector
-- build the test generator
-- remove duplicate generated test scenarios
-- build the generated test runner
-- integrate the analyzer with the API
-- add before/after coverage measurement
-- validate components during development
+Explain:
 
-Bob task-session evidence should be stored in the `bob_sessions/` folder for the final submission.
+"Test Gap Finder does not just suggest missing tests. For trusted local repositories it validates and executes generated tests, then shows the measurable coverage improvement."
 
-## Demo Message
+---
 
-The core message of the demo is:
+### 2:00 - 2:20 — GitHub Safety
 
-> Test Gap Finder reduces the manual effort required to identify missing tests. It analyzes an existing codebase, finds important untested behaviour, generates targeted tests, runs them automatically, and demonstrates measurable improvement in test coverage.
+Analyze a public GitHub repository.
 
-## Current Demo Metrics
+Example:
 
-Existing tests: 4  
-Generated tests: 6  
-Generated test results: 6 passed / 0 failed  
+    https://github.com/pallets/itsdangerous
 
-Coverage before: 65%  
-Coverage after: 96%  
-Coverage improvement: +31 percentage points
+Show:
 
-## Before Final Submission
+    Static analysis only
 
-Before recording the final demo:
+Explain:
 
-- connect the Angular frontend to the backend
-- replace the temporary sample repository with a more developer-relevant example if appropriate
-- confirm the complete workflow works from the UI
-- verify all Bob session evidence is saved
-- ensure the public GitHub repository contains no secrets
-- rehearse the presentation so it stays under 5 minutes
+"External GitHub repositories are treated differently. We clone and statically analyze them, but we do not import or execute untrusted repository code."
+
+---
+
+### 2:20 - 2:35 — History
+
+Briefly show the history sidebar.
+
+Explain that analyses can be:
+
+- Reopened
+- Searched
+- Renamed
+- Deleted
+
+---
+
+### 2:35 - 2:50 — IBM Bob
+
+Show IBM Bob task-session-summary evidence or relevant project material.
+
+Suggested narration:
+
+"We used IBM Bob throughout development to help design, implement, debug, test, refactor, and document the project, including the analyzer pipeline, execution safety, API architecture, and integration work."
+
+---
+
+## Important Messaging
+
+IBM Bob and Gemini have different roles.
+
+### IBM Bob
+
+IBM Bob helped the team build the project.
+
+### Google Gemini
+
+Gemini is an optional runtime provider used for structured test planning.
+
+If Gemini is unavailable:
+
+    deterministic planner fallback
+
+is used automatically.
+
+Do not say that IBM Bob generates the application's runtime tests.
+
+---
+
+## Strong Closing Line
+
+"Test Gap Finder finds the tests your code is missing, generates targeted pytest cases, and proves their impact with before-and-after coverage."
