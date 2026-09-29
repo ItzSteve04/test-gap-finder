@@ -8,7 +8,7 @@ Find the tests your code is missing.
 
 Team:
 - Dylan Glynn
-- Stephen McNeil
+- Stephen Mc Neill Killeen
 - Ben Chadwick
 
 Talking point:

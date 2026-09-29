@@ -5,7 +5,7 @@ Test Gap Finder is a developer tool that analyzes Python repositories to identif
 Built for the IBM Bob hackathon by:
 
 - Dylan Glynn
-- Stephen McNeil
+- Stephen Mc Neill Killeen
 - Ben Chadwick
 
 ## Overview
@@ -547,7 +547,7 @@ and verify that no credentials have ever been committed.
 # Team
 
 **Dylan Glynn**  
-**Stephen McNeil**  
+**Stephen Mc Neill Killeen**  
 **Ben Chadwick**
 
 Built for the IBM Bob Hackathon.

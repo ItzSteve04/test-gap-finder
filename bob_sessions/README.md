@@ -11,7 +11,7 @@ The hackathon submission requires IBM Bob task-session-summary evidence from eac
 The project team is:
 
 - Dylan Glynn
-- Stephen McNeil
+- Stephen Mc Neill Killeen
 - Ben Chadwick
 
 The current directory structure is:
